@@ -31,7 +31,7 @@
                                 src="<?php echo esc_html( get_template_directory_uri() . '/dt-assets/images/chevron_down.svg' ) ?>">
                         </a>
                         <div class="advanced-search-modal-results-post-types-view-at-top-collapsible-content">
-                            <?php build_post_types_option_list_html( "advanced-search-modal-post-types-at-top" ); ?>
+                            <?php build_post_types_option_list_html( 'advanced-search-modal-post-types-at-top' ); ?>
                             <hr>
                             <?php build_filters_option_list_html( 'top' ); ?>
                         </div>
@@ -48,7 +48,7 @@
                 </td>
                 <td class="advanced-search-modal-results-div-col-post-type">
                     <div class="advanced-search-modal-results-post-types-view-at-side">
-                        <?php build_post_types_option_list_html( "advanced-search-modal-post-types-at-side" ); ?>
+                        <?php build_post_types_option_list_html( 'advanced-search-modal-post-types-at-side' ); ?>
                         <hr>
                         <?php build_filters_option_list_html( 'side' ); ?>
                     </div>
@@ -62,7 +62,7 @@
         <?php echo esc_html__( 'Cancel', 'disciple_tools' ) ?>
     </button>
 
-    <button class="close-button" data-close aria-label="Close modal" type="button">
+    <button class="close-button" data-close aria-label="<?php esc_html_e( 'Close', 'disciple_tools' ); ?>" type="button">
         <span aria-hidden="true">&times;</span>
     </button>
 </div>
@@ -75,7 +75,7 @@ function build_post_types_option_list_html( $group_name ) {
     $search_post_types = DT_Posts::get_post_types();
     foreach ( $search_post_types as $search_post_type ) {
         $post_settings = DT_Posts::get_post_settings( $search_post_type );
-        $name          = $post_settings['label_plural'];
+        $name = $post_settings['label_plural'] ?? $search_post_type;
         if ( ! empty( $name ) && ( $search_post_type !== 'peoplegroups' ) ) {
             echo '<label style="cursor: pointer; white-space: nowrap;"><input id="' . esc_html( $search_post_type ) . '" type="radio" class="advanced-search-modal-post-types" name="' . esc_html( $group_name ) . '" value="' . esc_html( $search_post_type ) . '">' . esc_html( $name ) . '</label>';
         }
@@ -100,6 +100,12 @@ function build_filters_option_list_html( $location ) {
            class="advanced-search-modal-filters" checked>
     <label
         for="advanced-search-modal-filters-meta-<?php echo esc_attr( $location ); ?>"><?php echo esc_html__( 'Communication', 'disciple_tools' ); ?></label>
+    <br>
+
+    <input type="checkbox" id="advanced-search-modal-filters-archived-<?php echo esc_attr( $location ); ?>"
+           class="advanced-search-modal-filters">
+    <label
+        for="advanced-search-modal-filters-archived-<?php echo esc_attr( $location ); ?>"><?php echo esc_html__( 'Archived', 'disciple_tools' ); ?></label>
     <br>
     <?php
 }

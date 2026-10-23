@@ -15,7 +15,7 @@ add_filter( 'duplicate_comment_id', '__return_false' );
 add_filter( 'comment_flood_filter', '__return_false' );
 add_filter( 'pre_comment_approved', 'dt_filter_handler', '99', 2 );
 remove_action( 'plugins_loaded', 'wp_maybe_load_widgets', 0 );  //don't load widgets as we don't use them
-remove_action( "init", "wp_widgets_init", 1 ); // keep widgets from loading
+remove_action( 'init', 'wp_widgets_init', 1 ); // keep widgets from loading
 add_filter( 'wpmu_signup_blog_notification_email', 'dt_wpmu_signup_blog_notification_email', 10, 8 );
 add_filter( 'cron_schedules', 'dt_cron_schedules' );
 /**
@@ -64,19 +64,40 @@ function dt_filter_handler( $approved, $commentdata ){
     return 1;
 }
 
+function dt_is_locale_rtl( $locale = null ){
+    if ( empty( $locale ) ){
+        $locale = get_user_locale();
+    }
+    $all_languages = dt_get_global_languages_list();
+    return isset( $all_languages[ $locale ]['rtl'] ) && !empty( $all_languages[ $locale ]['rtl'] );
+}
+
 function dt_custom_dir_attr( $lang ){
+    /**
+     * If true overrides this filter and returns $lang
+     *
+     * @since 1.57
+     *
+     * @param bool       $override Whether to override dt_custom_dir_attr or not
+     */
+    if ( apply_filters( 'dt_custom_dir_attr_override', false ) ) {
+        return $lang;
+    }
+
     if ( is_admin() ) {
         return $lang;
     }
 
     $current_user = wp_get_current_user();
     $user_language = get_user_locale( $current_user->ID );
-    /* translators: If your language is written right to left make this translation as 'rtl', if it is written ltr make the translated text 'ltr' or leave it blank */
-    $dir = _x( 'ltr', 'either rtl or ltr', 'disciple_tools' );
+    $dir = dt_is_locale_rtl( $user_language ) ? 'rtl' : 'ltr';
 
-    //default direction to ltr
-    if ( $dir !== "rtl" ){
-        $dir = "ltr";
+    //set the locale to be rtl globally
+    if ( $dir === 'rtl' ){
+        global $wp_locale;
+        if ( $wp_locale instanceof WP_Locale ) {
+            $wp_locale->text_direction = 'rtl';
+        }
     }
 
     $dir_attr = 'dir="' . $dir . '"';
@@ -85,7 +106,7 @@ function dt_custom_dir_attr( $lang ){
 }
 
 function dt_wpmu_signup_blog_notification_email( $message, $domain, $path, $title, $user, $user_email, $key, $meta ){
-    return str_replace( "blog", "site", $message );
+    return str_replace( 'blog', 'site', $message );
 }
 
 
@@ -95,11 +116,11 @@ function dt_cron_schedules( $schedules ) {
         'interval' => 60 * 60 * 24 * 7, # 604,800, seconds in a week
         'display'  => 'Weekly'
     );
-    $schedules["15min"] = array(
+    $schedules['15min'] = array(
         'interval' => 15 * 60,
         'display'  => __( 'Once every 15 minutes' )
     );
-    $schedules["5min"] = array(
+    $schedules['5min'] = array(
         'interval' => 5 * 60,
         'display'  => __( 'Once every 5 minutes' )
     );
@@ -116,3 +137,22 @@ add_action( 'admin_init', function () {
         exit;
     }
 } );
+
+/**
+ * Log all successfully sent emails
+ */
+function dt_log_sent_emails( $mail_data ){
+    $dt_email_logs_enabled = get_option( 'dt_email_logs_enabled' );
+    if ( isset( $dt_email_logs_enabled ) && $dt_email_logs_enabled ){
+        dt_activity_insert( [
+            'action' => 'mail_sent',
+            'object_name' => $mail_data['subject'] ?? '',
+            'meta_value' => !empty( $mail_data['to'] ) ? json_encode( $mail_data['to'] ) : '',
+            'object_note' => ( strlen( $mail_data['message'] ) > 100 ) ? substr( $mail_data['message'], 0, 100 ) . '...' : $mail_data['message']
+        ] );
+    }
+
+    return $mail_data;
+}
+
+add_filter( 'wp_mail', 'dt_log_sent_emails', 999, 1 );

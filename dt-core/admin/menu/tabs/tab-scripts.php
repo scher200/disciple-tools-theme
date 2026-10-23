@@ -69,8 +69,8 @@ class Disciple_Tools_Scripts extends Disciple_Tools_Abstract_Menu_Base {
     public function add_tab( $tab ) {
         ?>
         <a href="<?php echo esc_html( admin_url( 'admin.php?page=dt_utilities&tab=scripts' ) ); ?>"
-           class="nav-tab <?php echo esc_html( $tab === "scripts" ? 'nav-tab-active' : '' ); ?>">
-            <?php echo esc_html__( "Scripts" ); ?>
+           class="nav-tab <?php echo esc_html( $tab === 'scripts' ? 'nav-tab-active' : '' ); ?>">
+            <?php echo esc_html__( 'Scripts' ); ?>
         </a>
         <?php
     }
@@ -91,32 +91,30 @@ class Disciple_Tools_Scripts extends Disciple_Tools_Abstract_Menu_Base {
 
     private function display_settings() {
 
-        $this->box( 'top', 'Scripts', [ "col_span" => 4 ] );
+        $this->box( 'top', 'Scripts', [ 'col_span' => 4 ] );
 
         ?>
         <table class="widefat striped">
             <thead>
                 <tr>
-                    <th>Field</th>
+                    <th>Generation Counts</th>
                     <th>Field</th>
                     <th>Progress</th>
                 </tr>
             </thead>
             <tbody>
         <?php
-
-        $post_types = DT_Posts::get_post_types();
-        foreach ( $post_types as $post_type ){
+        foreach ( DT_Posts::get_post_types() as $post_type ) {
             $field_settings = DT_Posts::get_post_field_settings( $post_type );
             foreach ( $field_settings as $field_key => $field_value ){
-                if ( isset( $field_value["connection_count_field"]["post_type"] ) && $field_value["connection_count_field"]["post_type"] === $post_type ){
-                    $name = $field_settings[$field_value["connection_count_field"]["field_key"]]["name"];
+                if ( isset( $field_value['connection_count_field']['post_type'] ) && $field_value['connection_count_field']['post_type'] === $post_type ){
+                    $name = $field_settings[$field_value['connection_count_field']['field_key']]['name'];
                     ?>
                     <tr id="<?php echo esc_html( $post_type . '_' . $field_key ); ?>">
                         <td><?php echo esc_html( $name ); ?> on <?php echo esc_html( $post_type ); ?></td>
                         <td>
                             <button type="button" class="reset_count_button" data-key="<?php echo esc_html( $field_key ); ?>" data-post-type="<?php echo esc_html( $post_type ); ?>">
-                                Reset Counts for <?php echo esc_html( $field_value["name"] ); ?>
+                                Reset Counts for <?php echo esc_html( $field_value['name'] ); ?>
                             </button>
                         </td>
                         <td class="progress">
@@ -129,6 +127,109 @@ class Disciple_Tools_Scripts extends Disciple_Tools_Abstract_Menu_Base {
             }
         }
         ?>
+            </tbody>
+        </table>
+        <br><br>
+
+        <table class="widefat striped">
+            <thead>
+            <tr>
+                <th>Activity Data</th>
+                <th>Field</th>
+                <th>Progress</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php
+            foreach ( DT_Posts::get_post_types() as $post_type ) {
+                $post_type_settings = DT_Posts::get_post_settings( $post_type, false );
+                $delete_label = sprintf( 'Remove activity for deleted fields on: %s', $post_type_settings['label_plural'] );
+                ?>
+                <tr>
+                    <td><?php echo esc_html( $post_type_settings['label_plural'] ); ?> <?php echo esc_html( __( 'Data Clean Up', 'disciple_tools' ) ); ?></td>
+                    <td>
+                        <button type="button" class="data-clean-up-button" data-post_type="<?php echo esc_html( $post_type ); ?>" data-delete_label="<?php echo esc_html( $delete_label ); ?>">
+                            <?php echo esc_html( $delete_label ); ?>
+                        </button>
+                    </td>
+                    <td class="progress">
+                        <span class="current"></span><span class="total"></span>
+                        <span class="loading-spinner"></span>
+                    </td>
+                </tr>
+                <?php
+            }
+            ?>
+            </tbody>
+        </table>
+        <?php
+        global $wpdb;
+        $orphaned_locations_count = $wpdb->get_var( "
+            SELECT count(postmeta_id_location_grid)
+            FROM $wpdb->dt_location_grid_meta
+            LEFT JOIN $wpdb->postmeta pm ON ( pm.meta_id = postmeta_id_location_grid )
+            WHERE pm.meta_id IS NULL
+        ");
+        ?>
+
+        <table class="widefat striped">
+            <thead>
+            <tr>
+                <th>Location Data</th>
+                <th>Field</th>
+                <th>Progress</th>
+            </tr>
+            </thead>
+            <tbody>
+
+            <tr>
+                <td>Orphaned Location Meta Records</td>
+                <td>
+                    <button type="button" id="locations-clean-up-button" data-delete_label="Delete Locations Meta">
+                        Delete <?php echo esc_html( $orphaned_locations_count ); ?> Records
+                    </button>
+                </td>
+                <td class="progress">
+                    <span class="current"></span><span class="total"></span>
+                    <span class="loading-spinner"></span>
+                </td>
+            </tr>
+
+            </tbody>
+        </table>
+        <?php
+        global $wpdb;
+        $orphaned_locations_count = $wpdb->get_var( "
+            SELECT postmeta_id_location_grid
+            FROM $wpdb->dt_location_grid_meta
+            LEFT JOIN $wpdb->postmeta pm ON ( pm.meta_id = postmeta_id_location_grid )
+            WHERE pm.meta_id IS NULL
+        ");
+        ?>
+
+        <table class="widefat striped">
+            <thead>
+            <tr>
+                <th>Location Data</th>
+                <th>Field</th>
+                <th>Progress</th>
+            </tr>
+            </thead>
+            <tbody>
+
+                <tr>
+                    <td>Orphaned Location Records</td>
+                    <td>
+                        <button type="button" class="data-clean-up-button" >
+                            Delete <?php echo esc_html( $orphaned_locations_count ); ?> Records
+                        </button>
+                    </td>
+                    <td class="progress">
+                        <span class="current"></span><span class="total"></span>
+                        <span class="loading-spinner"></span>
+                    </td>
+                </tr>
+
             </tbody>
         </table>
         <?php
@@ -144,7 +245,7 @@ class Disciple_Tools_Scripts extends Disciple_Tools_Abstract_Menu_Base {
             'wp-color-picker'
         ], filemtime( disciple_tools()->admin_js_path . 'dt-utilities-scripts.js' ), true );
         wp_localize_script(
-            "dt_utilities_scripts_script", "dt_admin_scripts", [
+            'dt_utilities_scripts_script', 'dt_admin_scripts', [
                 'site_url'  => site_url(),
                 'nonce'     => wp_create_nonce( 'wp_rest' ),
                 'rest_root' => esc_url_raw( rest_url() ),

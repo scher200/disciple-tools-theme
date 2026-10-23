@@ -28,64 +28,68 @@ class Disciple_Tools_Notifications_Comments
         if ( is_null( $comment ) ) {
             $comment = get_comment( $comment_id );
         }
-        if ( $comment->comment_type === "comment" ) {
 
-            $comment_with_users       = self::match_mention( $comment->comment_content ); // fail if no match for mention found
-            $comment->comment_content = $comment_with_users["comment"];
-            $mentioned_user_ids       = $comment_with_users["user_ids"];
-            $post_id                  = $comment->comment_post_ID;
-            $date_notified            = $comment->comment_date;
-            $post_type                = get_post_type( $post_id );
+        $comment_with_users = self::match_mention( $comment->comment_content ); // fail if no match for mention found
+        $comment_types_to_notify = apply_filters( 'dt_filter_comment_types_receiving_comment_notification', [ 'comment' ] );
+        if ( ( in_array( $comment->comment_type, $comment_types_to_notify ) ) || ( isset( $comment_with_users['user_ids'] ) && ( count( $comment_with_users['user_ids'] ) > 0 ) ) ) {
+            $comment->comment_content = $comment_with_users['comment'];
+            $mentioned_user_ids = $comment_with_users['user_ids'];
+            $post_id = $comment->comment_post_ID;
+            $date_notified = $comment->comment_date;
+            $post_type = get_post_type( $post_id );
 
-            $followers = DT_Posts::get_users_following_post( $post_type, $post_id, false );
-            if ( is_wp_error( $followers ) ){
-                return $followers;
+            // Only notify the wider community for comment types.
+            if ( $comment->comment_type === 'comment' ) {
+                $followers = DT_Posts::get_users_following_post( $post_type, $post_id, false );
+                if ( is_wp_error( $followers ) ) {
+                    return $followers;
+                }
+            } else {
+                $followers = [];
             }
 
             $users_to_notify = array_unique( array_merge( $mentioned_user_ids, $followers ) );
 
-            $users_to_notify = apply_filters( "dt_filter_users_receiving_comment_notification", $users_to_notify, $post_type, $post_id, $comment );
+            $users_to_notify = apply_filters( 'dt_filter_users_receiving_comment_notification', $users_to_notify, $post_type, $post_id, $comment );
 
             $source_user_id = $comment->user_id;
             $notification = [
-                'user_id'             => '',
-                'source_user_id'      => $source_user_id,
-                'post_id'             => (int) $post_id,
-                'secondary_item_id'   => (int) $comment_id,
-                'notification_name'   => "comment",
+                'user_id' => '',
+                'source_user_id' => $source_user_id,
+                'post_id' => (int) $post_id,
+                'secondary_item_id' => (int) $comment_id,
+                'notification_name' => 'comment',
                 'notification_action' => 'comment',
-                'notification_note'   => "",
-                'date_notified'       => current_time( 'mysql' ),
-                'is_new'              => 1,
-                'field_key'           => 'comments',
-                'field_value'         => '',
+                'notification_note' => '',
+                'date_notified' => current_time( 'mysql' ),
+                'is_new' => 1,
+                'field_key' => 'comments',
+                'field_value' => '',
             ];
-
 
             foreach ( $users_to_notify as $user_to_notify ) {
 
                 if ( $user_to_notify != $source_user_id ) { // checks that the user who created the event and the user receiving the notification are not the same.
 
-                    $user      = get_userdata( $user_to_notify );
+                    $user = get_userdata( $user_to_notify );
                     $user_meta = get_user_meta( $user_to_notify );
 
                     if ( $user && $user_meta ) {
                         // call appropriate action
-                        $notification["user_id"] = $user_to_notify;
+                        $notification['user_id'] = $user_to_notify;
                         if ( in_array( $user_to_notify, $mentioned_user_ids ) ) {
-                            $notification["notification_name"]   = 'mention';
-                            $notification["notification_action"] = 'mentioned';
+                            $notification['notification_name'] = 'mention';
+                            $notification['notification_action'] = 'mentioned';
                             // share record with mentioned individual
                             DT_Posts::add_shared( $post_type, $post_id, $user_to_notify, null, false );
                         } else {
-                            $notification["notification_name"]   = 'comment';
-                            $notification["notification_action"] = 'comment';
+                            $notification['notification_name'] = 'comment';
+                            $notification['notification_action'] = 'comment';
                         }
 
+                        $notification['notification_note'] = Disciple_Tools_Notifications::get_notification_message_html( $notification );
 
-                        $notification["notification_note"] = Disciple_Tools_Notifications::get_notification_message_html( $notification );
-
-                        if ( in_array( $user_to_notify, $mentioned_user_ids ) ){
+                        if ( in_array( $user_to_notify, $mentioned_user_ids ) ) {
                             do_action( 'send_notification_on_channels', $user_to_notify, $notification, 'mentions', [] );
                         } else {
                             do_action( 'send_notification_on_channels', $user_to_notify, $notification, 'comments', [] );
@@ -136,8 +140,8 @@ class Disciple_Tools_Notifications_Comments
             }
         }
         return [
-            "user_ids" => $user_ids,
-            "comment" => Disciple_Tools_Notifications::format_comment( $comment_content )
+            'user_ids' => $user_ids,
+            'comment' => Disciple_Tools_Notifications::format_comment( $comment_content )
         ];
 
 //        return empty( $user_ids ) ? false : $user_ids;
@@ -164,8 +168,8 @@ class Disciple_Tools_Notifications_Comments
         string $notification_action,
         string $notification_note,
         $date_notified,
-        string $field_key = "comments",
-        string $field_value = ""
+        string $field_key = 'comments',
+        string $field_value = ''
     ) {
 
         dt_notification_insert(

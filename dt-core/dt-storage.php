@@ -1,0 +1,413 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class DT_Storage_API {
+    /**
+     * Return supported S3-compatible providers and basic defaults.
+     * Consumers can use this for UI labels and default behaviors.
+     */
+    public static function list_supported_connection_types(): array {
+        return [
+            'aws' => [
+                'key' => 'aws',
+                'api' => 's3',
+                'label' => 'AWS S3',
+                'default_path_style' => false,
+                'enabled' => true,
+            ],
+            'backblaze' => [
+                'key' => 'backblaze',
+                'api' => 's3',
+                'label' => 'Backblaze B2',
+                'default_path_style' => false,
+                'enabled' => true,
+            ],
+            'minio' => [
+                'key' => 'minio',
+                'api' => 's3',
+                'label' => 'MinIO',
+                'default_path_style' => true,
+                'enabled' => true,
+            ],
+            'cloudflare_r2' => [
+                'key' => 'cloudflare_r2',
+                'api' => 's3',
+                'label' => 'Cloudflare R2',
+                'default_path_style' => false,
+                'enabled' => true,
+            ],
+            'other' => [
+                'key' => 'other',
+                'api' => 's3',
+                'label' => 'Other (S3-compatible)',
+                'default_path_style' => false,
+                'enabled' => true,
+            ],
+        ];
+    }
+
+    public static function get_settings(): array {
+        // New single-connection flat format
+        $connection = get_option( 'dt_storage_connection', [] );
+
+        if ( is_multisite() && ( empty( $connection ) || ( empty( $connection['access_key'] ) && empty( $connection['secret_access_key'] ) && empty( $connection['region'] ) && empty( $connection['bucket'] ) && empty( $connection['endpoint'] ) ) ) ) {
+            $connection = get_site_option( 'dt_storage_multisite_connection', [] );
+            if ( !empty( $connection ) ) {
+                $connection = $connection;
+            }
+        }
+
+        // Ensure default for path_style: true for minio, false otherwise if not set
+        if ( is_array( $connection ) && !array_key_exists( 'path_style', $connection ) ) {
+            $connection['path_style'] = isset( $connection['type'] );
+        }
+        return $connection;
+    }
+
+    public static function is_enabled(): bool {
+        $connection = self::get_settings();
+        return !empty( $connection['enabled'] );
+    }
+
+    private static function build_client_and_config(): array {
+        $conn = self::get_settings();
+        if ( empty( $conn ) || empty( $conn['type'] ) ) {
+            return [ null, null, null ];
+        }
+        $cfg = $conn;
+        if ( !isset( $cfg['access_key'], $cfg['secret_access_key'], $cfg['region'], $cfg['bucket'], $cfg['endpoint'] ) ) {
+            return [ null, null, null ];
+        }
+        $endpoint = self::validate_url( $cfg['endpoint'] );
+        $class = '\\AsyncAws\\S3\\S3Client';
+        if ( !class_exists( $class ) ) {
+            return [ null, null, null ];
+        }
+        $client = new $class([
+            'region' => $cfg['region'],
+            'endpoint' => $endpoint,
+            'accessKeyId' => $cfg['access_key'],
+            'accessKeySecret' => $cfg['secret_access_key'],
+            'pathStyleEndpoint' => (bool) ( $cfg['path_style'] ?? false ),
+        ]);
+        return [ $client, $cfg['bucket'], $cfg['id'] ];
+    }
+
+    private static function validate_url( $url ): string {
+        if ( !filter_var( $url, FILTER_VALIDATE_URL ) ) {
+            $http = 'http://';
+            $https = 'https://';
+            if ( ( substr( $url, 0, strlen( $http ) ) !== $http ) && ( substr( $url, 0, strlen( $https ) ) !== $https ) ) {
+                $url = $https . trim( $url );
+            }
+        }
+        return $url;
+    }
+
+    public static function get_file_url( string $key, array $params = [] ): string {
+        [ $client, $bucket ] = self::build_client_and_config();
+        if ( !$client ) {
+            return '';
+        }
+        $duration = $params['duration'] ?? '+24 hours';
+        try {
+            $input_class = '\\AsyncAws\\S3\\Input\\GetObjectRequest';
+            if ( class_exists( $input_class ) ) {
+                $input = new $input_class( [ 'Bucket' => $bucket, 'Key' => $key ] );
+                $presigned = $client->presign( $input, new \DateTimeImmutable( $duration ) );
+                return (string) $presigned;
+            }
+            return '';
+        } catch ( Throwable $e ) {
+            return '';
+        }
+    }
+
+    public static function get_thumbnail_url( string $key, array $params = [] ): string {
+        return self::get_file_url( self::generate_thumbnail_key_name( $key ), $params );
+    }
+
+    public static function get_large_thumbnail_url( string $key, array $params = [] ): string {
+        return self::get_file_url( self::generate_large_thumbnail_key_name( $key ), $params );
+    }
+
+    public static function upload_file( string $key_prefix = '', array $upload = [], string $existing_key = '', array $args = [] ){
+        $key_prefix = trailingslashit( $key_prefix );
+        [ $client, $bucket ] = self::build_client_and_config();
+        if ( !$client ) {
+            return false;
+        }
+
+        $auto_key = empty( $existing_key );
+        $key = $auto_key ? ( $key_prefix . self::generate_random_string( 64 ) ) : $existing_key;
+        if ( $auto_key && !empty( $upload['full_path'] ) ) {
+            $ext = pathinfo( $upload['full_path'], PATHINFO_EXTENSION );
+            if ( !empty( $ext ) ) {
+                $key .= '.' . $ext;
+            }
+        }
+
+        //Create a folder for the current site in case a bucket is shared between multiple sites.
+        $dt_site_id = dt_site_id();
+        $site_key = substr( $dt_site_id, 0, 30 );
+
+        // Ensure duplicate site id prefixes are handled accordingly.
+        $site_id_prefix = $site_key . '/';
+        $site_id_dup_count = substr_count( $key, $site_id_prefix );
+        if ( $site_id_dup_count === 0 ) {
+            $key = $site_id_prefix . $key;
+        } elseif ( $site_id_dup_count > 1 ) {
+            $key = $site_id_prefix . str_replace( $site_id_prefix, '', $key, $site_id_dup_count );
+        }
+
+        $tmp = $upload['tmp_name'] ?? '';
+        $type = $upload['type'] ?? '';
+
+        // Derive the real content type from the file's bytes rather than trusting the
+        // client-supplied value, and never store uploads as inline-executable content:
+        // anything that is not a known raster image is served as a download.
+        if ( $tmp && function_exists( 'finfo_open' ) ) {
+            $finfo = finfo_open( FILEINFO_MIME_TYPE );
+            if ( $finfo ) {
+                $detected = finfo_file( $finfo, $tmp );
+                finfo_close( $finfo );
+                if ( !empty( $detected ) ) {
+                    $type = $detected;
+                }
+            }
+        }
+        $safe_inline_types = [ 'image/gif', 'image/jpeg', 'image/png', 'image/webp' ];
+
+        // With require_image, images browsers cannot display (e.g. HEIC) are converted to JPEG when the server's image editor can read them.
+        $converted_path = null;
+        $is_safe_inline_type = in_array( strtolower( trim( $type ) ), $safe_inline_types, true );
+        if ( $tmp && !$is_safe_inline_type && !empty( $args['require_image'] ) ) {
+            $converted_path = self::create_resized_image( $tmp, 'image/jpeg' );
+            if ( $converted_path ) {
+                $tmp = $converted_path;
+                $type = 'image/jpeg';
+                $is_safe_inline_type = true;
+                if ( $auto_key ) {
+                    $key = preg_replace( '/\.[^.\/]+$/', '', $key ) . '.jpg';
+                }
+            }
+        }
+        $content_type = $is_safe_inline_type ? $type : 'application/octet-stream';
+
+        if ( !empty( $args['require_image'] ) && !$is_safe_inline_type ) {
+            return new WP_Error( 'storage_unsupported_image', __( 'This image format is not supported. Please upload a JPG, PNG, GIF or WebP image.', 'disciple_tools' ) );
+        }
+
+        try {
+            $client->putObject([
+                'Bucket' => $bucket,
+                'Key' => $key,
+                'Body' => fopen( $tmp, 'r' ),
+                'ContentType' => $content_type
+            ]);
+
+            $uploaded_thumbnail_key = null;
+            $uploaded_large_thumbnail_key = null;
+
+            if ( $is_safe_inline_type ) {
+                $thumbnails = [
+                    'small' => [ 100, self::generate_thumbnail_key_name( $key ) ],
+                    'large' => [ 1200, self::generate_large_thumbnail_key_name( $key ) ],
+                ];
+                foreach ( $thumbnails as $size => [ $width, $thumbnail_key ] ) {
+                    $thumbnail_path = self::create_resized_image( $tmp, $content_type, $width );
+                    if ( !$thumbnail_path ) {
+                        continue;
+                    }
+                    $client->putObject([
+                        'Bucket' => $bucket,
+                        'Key' => $thumbnail_key,
+                        'Body' => fopen( $thumbnail_path, 'r' ),
+                        'ContentType' => $content_type
+                    ]);
+                    @unlink( $thumbnail_path );
+                    if ( $size === 'small' ) {
+                        $uploaded_thumbnail_key = $thumbnail_key;
+                    } else {
+                        $uploaded_large_thumbnail_key = $thumbnail_key;
+                    }
+                }
+            }
+
+            return [
+                'uploaded' => true,
+                'uploaded_key' => $key,
+                'uploaded_thumbnail_key' => $uploaded_thumbnail_key,
+                'uploaded_large_thumbnail_key' => $uploaded_large_thumbnail_key,
+                'uploaded_msg' => null
+            ];
+        } catch ( Throwable $e ) {
+            return new WP_Error(
+                'storage_upload_failed',
+                __( 'Something went wrong. Please try again or have an admin check the connection settings.', 'disciple_tools' ),
+                [
+                    'technical_details' => $e->getMessage(),
+                    'error_code' => $e->getCode(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ]
+            );
+        } finally {
+            if ( $converted_path ) {
+                @unlink( $converted_path );
+            }
+        }
+    }
+
+    public static function delete_file( string $key ) {
+        [ $client, $bucket ] = self::build_client_and_config();
+        if ( !$client ) {
+            return false;
+        }
+        try {
+            $client->deleteObject( [ 'Bucket' => $bucket, 'Key' => $key ] );
+            $resp = [ 'file_key' => $key, 'file_deleted' => true ];
+
+            $ext = strtolower( pathinfo( $key, PATHINFO_EXTENSION ) );
+            if ( in_array( $ext, [ 'png', 'gif', 'jpeg', 'jpg', 'webp', 'heic', 'heif' ], true ) ) {
+                try {
+                    $thumb = self::generate_thumbnail_key_name( $key );
+                    $client->deleteObject( [ 'Bucket' => $bucket, 'Key' => $thumb ] );
+                    $resp['thumbnail_key'] = $thumb;
+                    $resp['thumbnail_deleted'] = true;
+
+                    $lthumb = self::generate_large_thumbnail_key_name( $key );
+                    $client->deleteObject( [ 'Bucket' => $bucket, 'Key' => $lthumb ] );
+                    $resp['large_thumbnail_key'] = $lthumb;
+                    $resp['large_thumbnail_deleted'] = true;
+                } catch ( Throwable $te ) { /* Thumbnail objects may not exist or are already deleted; ignoring is acceptable */ unset( $te ); }
+            }
+            return $resp;
+        } catch ( Throwable $e ) {
+            return null;
+        }
+    }
+
+    /**
+     * Writes a copy of an image to a temp file in the given format, auto-rotated per EXIF and
+     * scaled down to $max_width when wider. Returns the temp file path, or null when the server's
+     * image editor cannot read the source.
+     */
+    private static function create_resized_image( string $src, string $content_type, int $max_width = 0 ) {
+        $editor = wp_get_image_editor( $src );
+        if ( is_wp_error( $editor ) ) {
+            return null;
+        }
+        $editor->maybe_exif_rotate();
+        $size = $editor->get_size();
+        if ( $max_width && $size['width'] > $max_width && is_wp_error( $editor->resize( $max_width, null ) ) ) {
+            return null;
+        }
+        $base_path = tempnam( sys_get_temp_dir(), 'dt_img_' );
+        if ( $base_path === false ) {
+            return null;
+        }
+        @unlink( $base_path );
+        $saved = $editor->save( $base_path . '.' . wp_get_default_extension_for_mime_type( $content_type ), $content_type );
+        if ( is_wp_error( $saved ) || empty( $saved['path'] ) ) {
+            return null;
+        }
+        return $saved['path'];
+    }
+
+    private static function generate_random_string( $length = 112 ): string {
+        $random_string = '';
+        $keys = array_merge( range( 0, 9 ), range( 'a', 'z' ), range( 'A', 'Z' ) );
+        for ( $i = 0; $i < $length; $i++ ){
+            $random_string .= $keys[mt_rand( 0, count( $keys ) - 1 )];
+        }
+        return $random_string;
+    }
+
+    public static function generate_thumbnail_key_name( $key_name ): string {
+        $thumbnail_key_name = $key_name . '_thumbnail';
+        $extension_period_pos = strrpos( $key_name, '.' );
+        if ( $extension_period_pos !== false ) {
+            $part_1 = substr( $key_name, 0, $extension_period_pos );
+            $part_2 = substr( $key_name, $extension_period_pos + 1 );
+            $thumbnail_key_name = ( $part_1 . '_thumbnail.' ) . $part_2;
+        }
+        return $thumbnail_key_name;
+    }
+
+    public static function generate_large_thumbnail_key_name( $key_name ): string {
+        $large_thumbnail_key_name = $key_name . '_large_thumbnail';
+        $extension_period_pos = strrpos( $key_name, '.' );
+        if ( $extension_period_pos !== false ) {
+            $part_1 = substr( $key_name, 0, $extension_period_pos );
+            $part_2 = substr( $key_name, $extension_period_pos + 1 );
+            $large_thumbnail_key_name = ( $part_1 . '_large_thumbnail.' ) . $part_2;
+        }
+        return $large_thumbnail_key_name;
+    }
+
+    public static function validate_connection_settings(): array {
+        $result = [
+            'valid' => false,
+            'error_message' => ''
+        ];
+
+        [ $client, $bucket, $connection_id ] = self::build_client_and_config();
+
+        if ( !$client ) {
+            $result['error_message'] = 'Unable to create S3 client. Please check your connection settings.';
+            return $result;
+        }
+
+        if ( empty( $bucket ) ) {
+            $result['error_message'] = 'Bucket name is required but not provided.';
+            return $result;
+        }
+
+        $temp_path = tempnam( sys_get_temp_dir(), 'dt-storage-validate' );
+        if ( empty( $temp_path ) ) {
+            $result['error_message'] = 'Unable to create temporary file for validation.';
+            return $result;
+        }
+
+        $write_ok = file_put_contents( $temp_path, self::generate_random_string( 24 ) );
+        if ( $write_ok === false ) {
+            @unlink( $temp_path );
+            $result['error_message'] = 'Unable to write to temporary file for validation.';
+            return $result;
+        }
+
+        $body_handle = fopen( $temp_path, 'r' );
+        if ( $body_handle === false ) {
+            @unlink( $temp_path );
+            $result['error_message'] = 'Unable to read temporary file for validation.';
+            return $result;
+        }
+
+        try {
+            // Attempt to upload an empty dummy file.
+            $key = 'validated';
+            $client->putObject([
+                'Bucket' => $bucket,
+                'Key' => $key,
+                'Body' => $body_handle,
+                'ContentType' => 'text/plain'
+            ]);
+
+            $result['valid'] = true;
+            $result['error_message'] = '';
+
+        } catch ( Throwable $e ) {
+            $result['error_message'] = $e->getMessage();
+        } finally {
+            if ( is_resource( $body_handle ) ) {
+                fclose( $body_handle );
+            }
+            @unlink( $temp_path );
+        }
+
+        return $result;
+    }
+}

@@ -60,8 +60,11 @@ function dt_dra_disable_via_filters() {
  * Disable the built in Wordpress API because it opens all users and contacts to anyone who is logged in.
  */
 add_filter( 'rest_endpoints', function( $endpoints ){
-    $allowed_wp_v2_paths = apply_filters( 'allowed_wp_v2_paths', [] ); // enable wp/v2 endpoints in certain circumstances
+    $allowed_wp_v2_paths = apply_filters( 'allowed_wp_v2_paths', [ '/wp/v2/users/me' ] ); // enable wp/v2 endpoints in certain circumstances
     foreach ( $endpoints as $path => $endpoint ){
+        if ( trailingslashit( $path ) === '/wp/v2/' ){
+            continue;
+        }
         if ( strpos( $path, 'wp/v2' ) !== false ){
             $allowed = false;
             foreach ( $allowed_wp_v2_paths as $allowed_path ){
@@ -77,6 +80,28 @@ add_filter( 'rest_endpoints', function( $endpoints ){
     return $endpoints;
 });
 /**
+ * Whether the dispatched route is under the /dt-public/ namespace, or the first registered route pattern
+ * it matches (the one WordPress dispatches to) contains /dt-public/, e.g. /my-plugin/v1/dt-public/webhook
+ *
+ * @param string $route
+ * @return bool
+ */
+function dt_is_public_rest_route( $route ) {
+    if ( strpos( $route, '/dt-public/' ) === 0 ) {
+        return true;
+    }
+    if ( strpos( $route, '/dt-public/' ) === false ) {
+        return false;
+    }
+    foreach ( array_keys( rest_get_server()->get_routes() ) as $pattern ) {
+        if ( preg_match( '@^' . $pattern . '$@i', $route ) ) {
+            return strpos( $pattern, '/dt-public/' ) !== false;
+        }
+    }
+    return false;
+}
+
+/**
  * Returning an authentication error if a user who is not logged in tries to query tries to query a REST API endpoint that is not public
  *
  * @param  $access
@@ -89,15 +114,30 @@ function dt_dra_only_allow_logged_in_rest_access( $access ) {
     /**
      * External integrations to a Disciple.Tools site can be done through the /dt-public/ route, which is left open to non-logged in external access
      */
-    if ( isset( $_SERVER['REQUEST_URI'] ) && strpos( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), '/dt-public/' ) !== false ) {
+    $route = dt_get_rest_route();
+    if ( dt_is_public_rest_route( $route ) ) {
         $authorized = true;
     }
     /**
      * JWT token authentication is also open on the Disciple.Tools use of WP REST API
      */
-    $path = dt_get_url_path();
-    if ( $path == "wp-json/jwt-auth/v1/token" || $path == "wp-json/jwt-auth/v1/token/validate" ) {
+    $path = 'wp-json' . $route;
+    if ( $path == 'wp-json/jwt-auth/v1/token' || $path == 'wp-json/jwt-auth/v1/token/validate' ) {
         $authorized = true;
+    }
+
+    $allowed_paths = get_option( 'dt_api_whitelist', [] );
+
+    if ( in_array( $path, $allowed_paths ) ) {
+        $authorized = true;
+    }
+
+    foreach ( $allowed_paths as $allowed_path ) {
+        if ( substr( $allowed_path, -1 ) === '*' ) {
+            if ( strpos( $path, substr( $allowed_path, 0, -1 ) ) === 0 ) {
+                $authorized = true;
+            }
+        }
     }
 
     $authorized = apply_filters( 'dt_allow_rest_access', $authorized );
@@ -107,9 +147,9 @@ function dt_dra_only_allow_logged_in_rest_access( $access ) {
     if ( !$authorized && !is_user_logged_in() ){
         if ( isset( $_SERVER['HTTP_AUTHORIZATION'] ) ){
             $auth_token = sanitize_text_field( wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ) );
-        } elseif ( function_exists( "apache_request_headers" ) && isset( apache_request_headers()['Authorization'] ) ){
+        } elseif ( function_exists( 'apache_request_headers' ) && isset( apache_request_headers()['Authorization'] ) ){
             $auth_token = sanitize_text_field( wp_unslash( apache_request_headers()['Authorization'] ) );
-        }  elseif ( function_exists( "apache_request_headers" ) && isset( apache_request_headers()['authorization'] ) ){
+        }  elseif ( function_exists( 'apache_request_headers' ) && isset( apache_request_headers()['authorization'] ) ){
             $auth_token = sanitize_text_field( wp_unslash( apache_request_headers()['authorization'] ) );
         }
         if ( $auth_token ) {

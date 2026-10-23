@@ -63,6 +63,7 @@ class Disciple_Tools_Activity_Log_API {
                 'field_type'     => ''
             ]
         );
+
         // only get the current user if the global user object is set.
         // this avoids an infinite loop where the `determine_current_user` filter
         // keeps on trying to insert activity when an error is thrown.
@@ -72,7 +73,7 @@ class Disciple_Tools_Activity_Log_API {
             $user = wp_get_current_user();
         }
         if ( $user ) {
-            $args['user_caps'] = strtolower( key( $user->caps ) );
+            $args['user_caps'] = strtolower( key( $user->caps ) ?? 'system' );
             if ( empty( $args['user_id'] ) ) {
                 $args['user_id'] = $user->ID;
             }
@@ -83,18 +84,18 @@ class Disciple_Tools_Activity_Log_API {
             }
         }
         if ( isset( $user->site_key ) ){
-            $args["user_caps"] = $user->site_key;
+            $args['user_caps'] = $user->site_key;
         }
 
         // trim values that are too long.
         $text_fields = [ 'object_note', 'meta_value', 'old_value', 'action', 'object_type', 'object_subtype', 'object_name' ];
         foreach ( $text_fields as $field ){
             if ( isset( $args[$field] ) && strlen( $args[$field] ) >= 250 ) {
-                $args[$field] = is_serialized( $args[$field] ) ? "" : substr( $args[$field], 0, 250 ) . "...";
+                $args[$field] = is_serialized( $args[$field] ) ? '' : substr( $args[$field], 0, 250 ) . '...';
             }
             //make sure strings are not null
             if ( $args[$field] === null ){
-                $args[$field] = "";
+                $args[$field] = '';
             }
         }
 
@@ -138,13 +139,11 @@ class Disciple_Tools_Activity_Log_API {
             ]
         );
 
-        if ( isset( $args["object_id"] ) && isset( $args["object_subtype"] ) && $args["object_subtype"] !== "last_modified" && ( isset( $args["object_type"] ) && $args["object_type"] !== "User" ) && $args["action"] !== 'viewed' ){
-            update_post_meta( $args["object_id"], "last_modified", time() );
+        if ( isset( $args['object_id'] ) && isset( $args['object_subtype'] ) && $args['object_subtype'] !== 'last_modified' && ( isset( $args['object_type'] ) && $args['object_type'] !== 'User' ) && $args['action'] !== 'viewed' ){
+            update_post_meta( $args['object_id'], 'last_modified', time() );
         }
 
         // Final action on insert.
         do_action( 'dt_insert_activity', $args );
     }
 }
-
-

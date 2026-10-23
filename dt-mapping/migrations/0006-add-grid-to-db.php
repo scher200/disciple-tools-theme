@@ -12,9 +12,6 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
      */
     public function up() {
         global $wpdb;
-        if ( ! isset( $wpdb->dt_location_grid ) ) {
-            $wpdb->dt_location_grid = $wpdb->prefix . 'dt_location_grid';
-        }
 
         $file = 'dt_location_grid.tsv';
         $expected = 48000;
@@ -39,7 +36,7 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
             // TEST for presence of source files
             $dir = wp_upload_dir();
             $uploads_dir = trailingslashit( $dir['basedir'] );
-            if ( ! file_exists( $uploads_dir . "location_grid_download/" . $file ) ) {
+            if ( ! file_exists( $uploads_dir . 'location_grid_download/' . $file ) ) {
                 error_log( 'Failed to find ' . $file );
                 throw new Exception( 'Failed to find ' . $file );
             }
@@ -56,7 +53,7 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
                 $line = fgets( $fp, 2048 );
                 $count++;
 
-                $data = str_getcsv( $line, "\t" );
+                $data = str_getcsv( $line, "\t", '"', '\\' );
 
                 $data_sql = dt_array_to_sql( $data );
 
@@ -65,7 +62,7 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
                 }
                 if ( $count === 500 ) {
                     $query .= ';';
-                    $query = str_replace( ", ;", ";", $query ); //remove last comma
+                    $query = str_replace( ', ;', ';', $query ); //remove last comma
 
                     $wpdb->query( $query );  //phpcs:ignore
                     $query = "INSERT IGNORE INTO $wpdb->dt_location_grid VALUES ";
@@ -74,21 +71,21 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
             }
             //add the last queries
             $query .= ';';
-            $query = str_replace( ", ;", ";", $query ); //remove last comma
+            $query = str_replace( ', ;', ';', $query ); //remove last comma
             $wpdb->query( $query );  //phpcs:ignore
 
         }
 
         $dir = wp_upload_dir();
         $uploads_dir = trailingslashit( $dir['basedir'] );
-        if ( file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip" ) ) {
-            unlink( $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip" );
+        if ( file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip' ) ) {
+            unlink( $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip' );
         }
-        if ( file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv" ) ) {
-            unlink( $uploads_dir . "location_grid_download/dt_location_grid.tsv" );
+        if ( file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv' ) ) {
+            unlink( $uploads_dir . 'location_grid_download/dt_location_grid.tsv' );
         }
-        if ( file_exists( $uploads_dir . "location_grid_download/__MACOSX" ) ) {
-            unlink( $uploads_dir . "location_grid_download/__MACOSX" );
+        if ( file_exists( $uploads_dir . 'location_grid_download/__MACOSX' ) ) {
+            unlink( $uploads_dir . 'location_grid_download/__MACOSX' );
         }
         if ( file_exists( $uploads_dir . 'location_grid_download' ) ) {
             rmdir( $uploads_dir . 'location_grid_download' );
@@ -106,4 +103,3 @@ class DT_Mapping_Module_Migration_0006 extends DT_Mapping_Module_Migration {
         return [];
     }
 }
-

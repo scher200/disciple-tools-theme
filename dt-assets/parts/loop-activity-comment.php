@@ -12,14 +12,14 @@
     } else {
         $can_update = true;
     }
-    if ( $can_update || isset( $post["assigned_to"]["id"] ) && $post["assigned_to"]["id"] == get_current_user_id() ) {
+    if ( $can_update || ( isset( $post['assigned_to']['id'] ) && $post['assigned_to']['id'] == get_current_user_id() ) ) {
         $disabled = '';
     }
     ?>
     <div class="grid-y bordered-box">
         <h3 class="section-header">
             <span>
-                <?php esc_html_e( "Comments and Activity", 'disciple_tools' ) ?>
+                <?php esc_html_e( 'Comments and Activity', 'disciple_tools' ) ?>
                 <span id="comments-activity-spinner" class="loading-spinner"></span>
             </span>
             <button class="help-button" data-section="comments-activity-help-text">
@@ -36,36 +36,41 @@
         <div class="cell grid-x " id="add-comment-section">
             <div class="auto cell">
                 <textarea class="mention" <?php echo esc_html( $disabled ) ?> dir="auto" id="comment-input"
-                          placeholder="<?php echo esc_html_x( "Write your comment or note here", 'input field placeholder', 'disciple_tools' ) ?>"
+                          placeholder="<?php echo esc_html_x( 'Write your comment or note here', 'input field placeholder', 'disciple_tools' ) ?>"
                 ></textarea>
 
-                <?php if ( is_singular( "contacts" ) ) :
-                     $sections = [
-                         [
-                             "key" => "comment",
-                             "label" => __( "Comment", 'disciple_tools' ),
-                             "selected_by_default" => true
-                         ]
-                     ];
-                     $post_type = get_post_type();
-                     $sections = apply_filters( 'dt_comments_additional_sections', $sections, $post_type );?>
+                <?php
+                $post_type = get_post_type();
+                if ( is_singular( $post_type ) ) :
 
+                    $sections = [
+                        [
+                            'key' => 'comment',
+                            'label' => __( 'Comments', 'disciple_tools' ),
+                            'selected_by_default' => true,
+                            'always_show' => true,
+                        ]
+                    ];
+                    $sections = apply_filters( 'dt_comments_additional_sections', $sections, $post_type );
+
+                    if ( count( $sections ) > 1 ) : ?>
                         <div class="grid-x">
                             <div class="section-subheader cell shrink">
-                                <?php esc_html_e( "Type:", 'disciple_tools' ) ?>
+                                <?php esc_html_e( 'Type:', 'disciple_tools' ) ?>
                             </div>
                             <select id="comment_type_selector" class="cell auto">
                                 <?php
-                                $section_keys = [];
+                                $section_keys = [ 'activity' ];
                                 foreach ( $sections as $section ) {
-                                    if ( !in_array( $section["key"], $section_keys ) ) {
-                                        $section_keys[] = $section["key"] ?>
-                                        <option value="<?php echo esc_html( $section["key"] ); ?>">
-                                        <?php echo esc_html( $section["label"] );
+                                    if ( ! in_array( $section['key'], $section_keys ) && ( ! isset( $section['is_comment_type'] ) || ( isset( $section['enabled'] ) && $section['enabled'] ) ) ) {
+                                        $section_keys[] = $section['key'] ?>
+                                        <option value="<?php echo esc_html( $section['key'] ); ?>">
+                                            <?php echo esc_html( $section['label'] );
                                     }
                                 } ?>
                             </select>
                         </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -74,55 +79,122 @@
                 <?php do_action( 'dt_comment_action_quick_action', get_post_type() ); ?>
             </div>
             <div class="shrink cell" id="add-comment-button-container">
+                <!-- Add recording button next to submit button if storage capability is available -->
+                <?php if ( DT_Storage_API::is_enabled() ) { ?>
+                    <button id="image-comment-upload-button" class="image-comment-btn dt-storage-upload" title="<?php esc_html_e( 'Add Image Comment', 'disciple_tools' ) ?>" <?php echo esc_html( $disabled ) ?>
+                            data-storage_upload_post_type="<?php echo esc_attr( $post_type ) ?>"
+                            data-storage_upload_post_id="<?php echo esc_attr( $post_id ) ?>"
+                            data-storage_upload_meta_key="image_url"
+                            data-storage_upload_key_prefix="<?php echo esc_attr( $post_type )?>"
+                            data-storage_upload_type="image_comment">
+                        <i class="mdi mdi-tooltip-image-outline"
+                           data-storage_upload_post_type="<?php echo esc_attr( $post_type ) ?>"
+                           data-storage_upload_post_id="<?php echo esc_attr( $post_id ) ?>"
+                           data-storage_upload_meta_key="image_url"
+                           data-storage_upload_key_prefix="<?php echo esc_attr( $post_type )?>"
+                           data-storage_upload_type="image_comment"></i>
+                    </button>
+                    <button id="voice-record-button" class="voice-record-btn" title="<?php esc_html_e( 'Record Voice Message', 'disciple_tools' ) ?>" <?php echo esc_html( $disabled ) ?>>
+                        <i class="mdi mdi-microphone"></i>
+                    </button>
+                <?php } ?>
                 <button id="add-comment-button" class="button loader <?php echo esc_html( $disabled ); ?>">
-                    <?php esc_html_e( "Submit comment", 'disciple_tools' ) ?>
+                    <?php esc_html_e( 'Submit comment', 'disciple_tools' ) ?>
                 </button>
             </div>
         </div>
+
+        <!-- Audio recording controls (initially hidden) -->
+        <div id="audio-recording-controls" class="audio-recording-controls hide" style="display: none;">
+            <div class="recording-header">
+                <div class="recording-status">
+                    <span id="recording-status-text"><?php esc_html_e( 'Ready to record', 'disciple_tools' ) ?></span>
+                    <div id="recording-timer" class="recording-timer">00:00</div>
+                </div>
+            </div>
+
+            <!-- Audio visualization container -->
+            <div class="audio-visualization-container">
+                <canvas id="audio-visualizer" width="400" height="80"></canvas>
+            </div>
+
+            <!-- Audio preview (moved up to replace waveform canvas) -->
+            <div class="audio-preview-container" style="display: none;">
+                <audio id="recording-preview" controls></audio>
+            </div>
+
+            <div class="recording-controls">
+                <?php do_action( 'dt_upload_audio_comment_languages' ); ?>
+                <button id="start-recording-btn" class="button recording-btn start-btn">
+                    <i class="mdi mdi-record"></i> <?php esc_html_e( 'Start Recording', 'disciple_tools' ) ?>
+                </button>
+                <button id="stop-recording-btn" class="button recording-btn stop-btn" style="display: none;">
+                    <i class="mdi mdi-stop"></i> <?php esc_html_e( 'Stop Recording', 'disciple_tools' ) ?>
+                </button>
+                <button id="play-recording-btn" class="button recording-btn play-btn" style="display: none;">
+                    <i class="mdi mdi-play"></i> <?php esc_html_e( 'Play Recording', 'disciple_tools' ) ?>
+                </button>
+                <button id="save-recording-btn" class="button recording-btn save-btn" style="display: none;">
+                    <i class="mdi mdi-content-save"></i> <?php esc_html_e( 'Save Recording', 'disciple_tools' ) ?>
+                </button>
+                <button id="cancel-recording-btn" class="button recording-btn cancel-btn">
+                    <i class="mdi mdi-close"></i> <?php esc_html_e( 'Cancel', 'disciple_tools' ) ?>
+                </button>
+            </div>
+            
+            <!-- Upload error message container -->
+            <div class="upload-error-message" style="display: none;">
+                <div class="callout alert">
+                    <i class="mdi mdi-alert-circle"></i>
+                    <span class="error-text"></span>
+                </div>
+            </div>
+        </div>
+
         <div class="section-body"><!-- start collapse -->
         <div class="cell">
 
             <div>
-                <span style="display: inline-block; margin-right:5px; vertical-align:top; font-weight: bold"><?php esc_html_e( "Showing:", 'disciple_tools' ) ?></span>
+                <span style="display: inline-block; margin-right:5px; vertical-align:top; font-weight: bold"><?php esc_html_e( 'Showing:', 'disciple_tools' ) ?></span>
                 <ul id="comment-activity-tabs" style="display: inline-block; margin: 0">
 
                     <?php
+                    $post_type = get_post_type();
                     $sections = [
                         [
-                            "key" => "comment",
-                            "label" => __( "Comments", 'disciple_tools' ),
-                            "selected_by_default" => true,
-                            "always_show" => true,
+                            'key' => 'comment',
+                            'label' => __( 'Comments', 'disciple_tools' ),
+                            'selected_by_default' => true,
+                            'always_show' => true,
                         ],
                         [
-                            "key" => "activity",
-                            "label" => __( "Activity", 'disciple_tools' ),
-                            "selected_by_default" => true,
-                            "always_show" => true,
+                            'key' => 'activity',
+                            'label' => __( 'Activity', 'disciple_tools' ),
+                            'selected_by_default' => true,
+                            'always_show' => true,
                         ]
                     ];
-                    $post_type = get_post_type();
                     $sections = apply_filters( 'dt_comments_additional_sections', $sections, $post_type );
                     $section_keys = [];
                     foreach ( $sections as $section ) :
-                        if ( isset( $section["key"] ) && isset( $section["label"] ) && !in_array( $section["key"], $section_keys ) ) :
-                            $section_keys[] = $section["key"];
-                            $always_show = isset( $section["always_show"] ) && $section["always_show"] === true;
+                        if ( isset( $section['key'] ) && isset( $section['label'] ) && !in_array( $section['key'], $section_keys ) ) :
+                            $section_keys[] = $section['key'];
+                            $always_show = isset( $section['always_show'] ) && $section['always_show'] === true;
                             ?>
                             <li
                                 class="tabs-title <?php echo esc_html( $always_show ? '' : 'hide' ) ?>"
                                 data-always-show="<?php echo esc_html( $always_show ? 'true' : 'false' ) ?>"
                             >
-                                <label for="tab-button-<?php echo esc_html( $section["key"] ) ?>">
+                                <label for="tab-button-<?php echo esc_html( $section['key'] ) ?>">
                                     <input type="checkbox"
-                                           name="<?php echo esc_html( $section["key"] ) ?>"
-                                           id="tab-button-<?php echo esc_html( $section["key"] ) ?>"
-                                           data-id="<?php echo esc_html( $section["key"] ) ?>"
+                                           name="<?php echo esc_html( $section['key'] ) ?>"
+                                           id="tab-button-<?php echo esc_html( $section['key'] ) ?>"
+                                           data-id="<?php echo esc_html( $section['key'] ) ?>"
                                            class="tabs-section"
                                            checked
                                     >
                                     <span class="tab-button-label" dir="auto"
-                                          data-id="<?php echo esc_html( $section["key"] ) ?>"> <?php echo esc_html( $section["label"] ) ?></span>
+                                          data-id="<?php echo esc_html( $section['key'] ) ?>"> <?php echo esc_html( $section['label'] ) ?></span>
                                 </label>
 
                             </li>
@@ -130,11 +202,11 @@
                     endforeach; ?>
                     <li class="tabs-title">
                         <button id="show-all-tabs"
-                                class="show-tabs"><?php esc_html_e( "show all", 'disciple_tools' ) ?></button>
+                                class="show-tabs"><?php esc_html_e( 'show all', 'disciple_tools' ) ?></button>
                     </li>
                     <li class="tabs-title">
                         <button id="hide-all-tabs"
-                                class="show-tabs"><?php esc_html_e( "hide all", 'disciple_tools' ) ?></button>
+                                class="show-tabs"><?php esc_html_e( 'hide all', 'disciple_tools' ) ?></button>
                     </li>
                 </ul>
             </div>
@@ -155,13 +227,13 @@
             <button class="button alert loader" aria-label="confirm" type="button" id="confirm-comment-delete">
                 <?php esc_html_e( 'Delete', 'disciple_tools' ) ?>
             </button>
-            <button class="close-button" data-close aria-label="Close modal" type="button">
+            <button class="close-button" data-close aria-label="<?php esc_html_e( 'Close', 'disciple_tools' ); ?>" type="button">
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
         <div class="delete-comment callout small alert" style="display: none">
-            <h5><?php esc_html_e( "Sorry, something went wrong", 'disciple_tools' ) ?></h5>
-            <p id="delete-comment-error"><?php esc_html_e( "The comment could not be deleted.", 'disciple_tools' ) ?></p>
+            <h5><?php esc_html_e( 'Sorry, something went wrong', 'disciple_tools' ) ?></h5>
+            <p id="delete-comment-error"><?php esc_html_e( 'The comment could not be deleted.', 'disciple_tools' ) ?></p>
         </div>
     </div>
 
@@ -170,27 +242,28 @@
         <textarea id="comment-to-edit" rows="5" dir="auto"></textarea>
         <div class="grid-x">
             <div class="cell small-12" id="edit_typeOfComment">
-                <?php if ( is_singular( "contacts" ) ) :
-                     $sections = [
-                         [
-                             "key" => "comment",
-                             "label" => __( "Comments", 'disciple_tools' ),
-                             "selected_by_default" => true
-                         ]
-                     ];
-                     $post_type = get_post_type();
-                     $sections = apply_filters( 'dt_comments_additional_sections', $sections, $post_type );?>
+                <?php if ( is_singular( 'contacts' ) ) :
+                    $post_type = get_post_type();
+                    $sections = [
+                        [
+                            'key' => 'comment',
+                            'label' => __( 'Comments', 'disciple_tools' ),
+                            'selected_by_default' => true,
+                            'always_show' => true,
+                        ]
+                    ];
+                    $sections = apply_filters( 'dt_comments_additional_sections', $sections, $post_type );?>
                         <div class="section-subheader">
-                            <?php esc_html_e( "Type of Comment", 'disciple_tools' ) ?>
+                            <?php esc_html_e( 'Type of Comment', 'disciple_tools' ) ?>
                         </div>
                         <select id="edit_comment_type_selector" class="">
                             <?php
                             $section_keys = [];
                             foreach ( $sections as $section ) {
-                                if ( !in_array( $section["key"], $section_keys ) ) {
-                                    $section_keys[] = $section["key"] ?>
-                                    <option value="<?php echo esc_html( $section["key"] ); ?>">
-                                    <?php echo esc_html( $section["label"] );
+                                if ( !in_array( $section['key'], $section_keys ) ) {
+                                    $section_keys[] = $section['key'] ?>
+                                    <option value="<?php echo esc_html( $section['key'] ); ?>">
+                                    <?php echo esc_html( $section['label'] );
                                 }
                             } ?>
                         </select>
@@ -202,13 +275,13 @@
             <button class="button loader" aria-label="confirm" type="button" id="confirm-comment-edit">
                 <?php esc_html_e( 'Update', 'disciple_tools' ) ?>
             </button>
-            <button class="close-button" data-close aria-label="Close modal" type="button">
+            <button class="close-button" data-close aria-label="<?php esc_html_e( 'Close', 'disciple_tools' ); ?>" type="button">
                 <span aria-hidden="true">&times;</span>
             </button>
         </div>
         <div class="edit-comment callout small alert" style="display: none">
-            <h5><?php esc_html_e( "Sorry, something went wrong", 'disciple_tools' ) ?></h5>
-            <p id="edit-comment-error"><?php esc_html_e( "The comment could not be updated.", 'disciple_tools' ) ?></p>
+            <h5><?php esc_html_e( 'Sorry, something went wrong', 'disciple_tools' ) ?></h5>
+            <p id="edit-comment-error"><?php esc_html_e( 'The comment could not be updated.', 'disciple_tools' ) ?></p>
         </div>
     </div>
 

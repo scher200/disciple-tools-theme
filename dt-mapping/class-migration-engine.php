@@ -15,7 +15,7 @@ class DT_Mapping_Module_Migration_Engine
      * Current Migration number for the mapping system
      * @var int
      */
-    public static $migration_number = 15;
+    public static $migration_number = 20;
     /** End Current Migration Number */
 
     protected static $migrations = null;
@@ -30,23 +30,23 @@ class DT_Mapping_Module_Migration_Engine
         if ( self::$migrations !== null ) {
             return self::$migrations;
         }
-        require_once( plugin_dir_path( __FILE__ ) . "migrations/abstract.php" );
-        $filenames = scandir( plugin_dir_path( __FILE__ ) . "migrations/", SCANDIR_SORT_ASCENDING );
+        require_once( plugin_dir_path( __FILE__ ) . 'migrations/abstract.php' );
+        $filenames = scandir( plugin_dir_path( __FILE__ ) . 'migrations/', SCANDIR_SORT_ASCENDING );
 
         if ( $filenames === false ) {
-            throw new Exception( "Could not scan migrations directory" );
+            throw new Exception( 'Could not scan migrations directory' );
         }
         $expected_migration_number = 0;
         $rv = [];
         foreach ( $filenames as $filename ) {
-            if ( $filename[0] !== "." && $filename !== "abstract.php" ){
+            if ( $filename[0] !== '.' && $filename !== 'abstract.php' ){
                 if ( preg_match( '/^([0-9][0-9][0-9][0-9])(-.*)?\.php$/i', $filename, $matches ) ) {
                     $got_migration_number = intval( $matches[1] );
                     if ( $expected_migration_number !== $got_migration_number ) {
-                        throw new Exception( sprintf( "Expected to find migration number %04d", $expected_migration_number ) );
+                        throw new Exception( sprintf( 'Expected to find migration number %04d', $expected_migration_number ) );
                     }
                     require_once( plugin_dir_path( __FILE__ ) . "migrations/$filename" );
-                    $migration_name = sprintf( "DT_Mapping_Module_Migration_%04d", $got_migration_number );
+                    $migration_name = sprintf( 'DT_Mapping_Module_Migration_%04d', $got_migration_number );
                     $rv[] = new $migration_name();
                     $expected_migration_number++;
                 } else {
@@ -74,6 +74,12 @@ class DT_Mapping_Module_Migration_Engine
         if ( $target_migration_number >= count( self::get_migrations() ) ) {
             throw new Exception( "Migration number $target_migration_number does not exist" );
         }
+        global $wpdb;
+        //makes sure tables are set up
+        if ( !isset( $wpdb->dt_location_grid ) ){
+            $wpdb->dt_location_grid = apply_filters( 'dt_location_grid_table', $wpdb->prefix . 'dt_location_grid' );
+        }
+
         while ( true ) {
             $current_migration_number = get_option( 'dt_mapping_module_migration_number' );
             if ( $current_migration_number === false ) {
@@ -101,7 +107,7 @@ class DT_Mapping_Module_Migration_Engine
             }
             set_transient( 'dt_mapping_module_migration_lock', '1', DAY_IN_SECONDS );
 
-            error_log( gmdate( "Y-m-d H:i:s T" ) . " Starting mapping migrating to number $activating_migration_number" );
+            error_log( gmdate( 'Y-m-d H:i:s T' ) . " Starting mapping migrating to number $activating_migration_number" );
             try {
                 $migration->up();
             } catch ( Throwable $e ) {
@@ -114,7 +120,7 @@ class DT_Mapping_Module_Migration_Engine
                 throw $e;
             }
             update_option( 'dt_mapping_module_migration_number', (string) $activating_migration_number );
-            error_log( gmdate( "Y-m-d H:i:s T" ) . " Done mapping migrating to number $activating_migration_number" );
+            error_log( gmdate( 'Y-m-d H:i:s T' ) . " Done mapping migrating to number $activating_migration_number" );
 
             delete_transient( 'dt_mapping_module_migration_lock' );
 
@@ -139,13 +145,12 @@ class DT_Mapping_Module_Migration_Engine
     public static function get_current_db_migration(){
         return get_option( 'dt_mapping_module_migration_number' );
     }
-
 }
 
 
 class DT_Mapping_Module_Migration_Lock_Exception extends Exception
 {
-    public function __construct( $message = null, $code = 0, Exception $previous = null ) {
+    public function __construct( $message = null, $code = 0, ?Exception $previous = null ) {
         /*
          * Instead of throwing a simple exception that the migration lock is
          * held, it would be good for the user to if there any previous errors,
@@ -155,10 +160,10 @@ class DT_Mapping_Module_Migration_Lock_Exception extends Exception
         $last_migration_error = get_option( 'dt_mapping_module_migrate_last_error' );
         if ( $message === null ) {
             if ( $last_migration_error === false ) {
-                $message = "Cannot migrate, as migration lock is held";
+                $message = 'Cannot migrate, as migration lock is held';
             } else {
                 $message =
-                    "Cannot migrate, as migration lock is held. This is the previous stored migration error: "
+                    'Cannot migrate, as migration lock is held. This is the previous stored migration error: '
                     . var_export( $last_migration_error, true );
             }
         }

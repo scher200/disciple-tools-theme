@@ -12,6 +12,13 @@ if ( ! defined( 'ABSPATH' ) ) { exit; } // Exit if accessed directly
 class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
 
     public function up() {
+        global $wpdb;
+        $rows = (int) $wpdb->get_var( "SELECT count(*) FROM $wpdb->dt_location_grid" );
+        if ( $rows >= 1 ) {
+            /* Test if database is already created */
+            error_log( 'database already installed' );
+            return;
+        }
 
         // get uploads director
         $dir = wp_upload_dir();
@@ -21,11 +28,11 @@ class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
         if ( ! file_exists( $uploads_dir . 'location_grid_download' ) ) {
             mkdir( $uploads_dir . 'location_grid_download' );
         }
-        if ( file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip" ) ) {
-            unlink( $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip" );
+        if ( file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip' ) ) {
+            unlink( $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip' );
         }
-        if ( file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv" ) ) {
-            unlink( $uploads_dir . "location_grid_download/dt_location_grid.tsv" );
+        if ( file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv' ) ) {
+            unlink( $uploads_dir . 'location_grid_download/dt_location_grid.tsv' );
         }
 
         // get mirror source file url
@@ -33,9 +40,9 @@ class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
 
         $gn_source_url = $mirror_source . 'location_grid/dt_location_grid.tsv.zip';
 
-        $zip_file = $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip";
+        $zip_file = $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip';
 
-        $zip_resource = fopen( $zip_file, "w" );
+        $zip_resource = fopen( $zip_file, 'w' );
 
         $ch_start = curl_init();
         curl_setopt( $ch_start, CURLOPT_URL, $gn_source_url );
@@ -43,7 +50,6 @@ class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
         curl_setopt( $ch_start, CURLOPT_HEADER, 0 );
         curl_setopt( $ch_start, CURLOPT_FOLLOWLOCATION, true );
         curl_setopt( $ch_start, CURLOPT_AUTOREFERER, true );
-        curl_setopt( $ch_start, CURLOPT_BINARYTRANSFER, true );
         curl_setopt( $ch_start, CURLOPT_TIMEOUT, 30 );
         curl_setopt( $ch_start, CURLOPT_SSL_VERIFYHOST, 0 );
         curl_setopt( $ch_start, CURLOPT_SSL_VERIFYPEER, 0 );
@@ -51,19 +57,19 @@ class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
         $page = curl_exec( $ch_start );
         if ( !$page )
         {
-            error_log( "Error :- ".curl_error( $ch_start ) );
+            error_log( 'Error :- '.curl_error( $ch_start ) );
         }
         curl_close( $ch_start );
 
         if ( !class_exists( 'ZipArchive' ) ){
-            error_log( "PHP ZipArchive is not installed or enabled." );
+            error_log( 'PHP ZipArchive is not installed or enabled.' );
             throw new Exception( 'PHP ZipArchive is not installed or enabled.' );
         }
         $zip = new ZipArchive();
         $extract_path = $uploads_dir . 'location_grid_download';
-        if ( $zip->open( $zip_file ) != "true" )
+        if ( $zip->open( $zip_file ) != 'true' )
         {
-            error_log( "Error :- Unable to open the Zip File" );
+            error_log( 'Error :- Unable to open the Zip File' );
         }
 
         $zip->extractTo( $extract_path );
@@ -85,14 +91,18 @@ class DT_Mapping_Module_Migration_0005 extends DT_Mapping_Module_Migration {
      * @throws \Exception Did not find files.
      */
     public function test() {
+        if ( apply_filters( 'dt_using_multisite_location_grid_table', false ) ) {
+            return;
+        }
+
         $dir = wp_upload_dir();
         $uploads_dir = trailingslashit( $dir['basedir'] );
 
-        if ( ! file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv.zip" ) ) {
+        if ( ! file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv.zip' ) ) {
             error_log( 'Failed to find dt_location_grid.tsv.zip' );
             throw new Exception( 'Failed to find dt_location_grid.tsv.zip' );
         }
-        if ( ! file_exists( $uploads_dir . "location_grid_download/dt_location_grid.tsv" ) ) {
+        if ( ! file_exists( $uploads_dir . 'location_grid_download/dt_location_grid.tsv' ) ) {
             error_log( 'Failed to find dt_location_grid.tsv' );
             throw new Exception( 'Failed to find dt_location_grid.tsv' );
         }

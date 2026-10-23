@@ -3,6 +3,11 @@ if ( !defined( 'ABSPATH' ) ) { exit; } // Exit if accessed directly
 
 class Disciple_Tools_Migration_0034 extends Disciple_Tools_Migration {
     public function up() {
+        //skip this migration on a new install
+        if ( dt_get_initial_install_meta( 'migration_number' ) > 34 ){
+            return;
+        }
+
         /**
          * Make sure contacts and groups are shared with the user assigned to them.
          * Make sure contacts are shared with the subassigned users.
@@ -36,7 +41,6 @@ class Disciple_Tools_Migration_0034 extends Disciple_Tools_Migration {
             WHERE sub.p2p_type = 'contacts_to_contacts'
             AND sub.p2p_to NOT IN ( SELECT post_id FROM $wpdb->dt_share WHERE post_id = sub.p2p_to AND user_id = pm.meta_value )
         ");
-
     }
 
     public function down() {

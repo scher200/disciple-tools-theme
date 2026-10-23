@@ -524,7 +524,7 @@ if ( ! class_exists( 'Location_Grid_Geocoder' ) ) {
          */
         public function _is_in_polygon( $points_polygon, $vertices_x, $vertices_y, $longitude_x, $latitude_y ) {
             $i = $j = $c = 0;
-            for ( $i = 0, $j = $points_polygon - 1; $i < $points_polygon; $j = $i ++ ) {
+            for ( $i = 0, $j = $points_polygon - 1; $i < $points_polygon; $j = $i++ ) {
                 if ( ( ( $vertices_y[ $i ] > $latitude_y != ( $vertices_y[ $j ] > $latitude_y ) ) && ( $longitude_x < ( $vertices_x[ $j ] - $vertices_x[ $i ] ) * ( $latitude_y - $vertices_y[ $i ] ) / ( $vertices_y[ $j ] - $vertices_y[ $i ] ) + $vertices_x[ $i ] ) ) ) {
                     $c = ! $c;
                 }
@@ -642,7 +642,7 @@ if ( ! class_exists( 'Location_Grid_Geocoder' ) ) {
             return $query;
         }
 
-        public function query_lowest_level_by_lnglat( float $longitude, float $latitude, string $country_code = null ): array {
+        public function query_lowest_level_by_lnglat( float $longitude, float $latitude, ?string $country_code = null ): array {
             global $wpdb;
 
             if ( is_null( $country_code ) ) {
@@ -828,8 +828,22 @@ if ( ! class_exists( 'Location_Grid_Geocoder' ) ) {
         public function mapbox_get_country_by_coordinates( $longitude, $latitude ) {
             $country_code = false;
             if ( get_option( 'dt_mapbox_api_key' ) ) {
-                $url         = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' . $longitude . ',' . $latitude . '.json?types=country&access_token=' . get_option( 'dt_mapbox_api_key' );
-                $data_result = @file_get_contents( $url );
+                $url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' . $longitude . ',' . $latitude . '.json?types=country&access_token=' . get_option( 'dt_mapbox_api_key' );
+
+                $server_url = home_url( '', 'https' );
+                $server_url = rtrim( $server_url, '/' );
+                $args = [
+                    'headers' => [
+                        'Referer' => $server_url
+                    ]
+                ];
+                $response = wp_remote_get( esc_url_raw( $url ), $args );
+
+                if ( is_wp_error( $response ) ) {
+                    return false;
+                }
+
+                $data_result = wp_remote_retrieve_body( $response );
                 if ( ! $data_result ) {
                     return false;
                 }
@@ -943,8 +957,8 @@ if ( ! class_exists( 'Location_Grid_Geocoder' ) ) {
                     $label = $admin5_name . ', ' . $admin1_name . ', ' . $admin0_name;
                 }
                 //make sure custom locations are included in the label
-                if ( isset( $row["is_custom_location"] ) && !empty( $row["is_custom_location"] ) ){
-                    $name = ( isset( $row["alt_name"] ) && !empty( $row["alt_name"] ) ) ? $row["alt_name"] : ( $row["name"] ?? '' );
+                if ( isset( $row['is_custom_location'] ) && !empty( $row['is_custom_location'] ) ){
+                    $name = ( isset( $row['alt_name'] ) && !empty( $row['alt_name'] ) ) ? $row['alt_name'] : ( $row['name'] ?? '' );
                     $label = $name . ', ' . $label;
                 }
             }
@@ -1007,6 +1021,5 @@ if ( ! class_exists( 'Location_Grid_Geocoder' ) ) {
             }
             return $level;
         }
-
     }
 }

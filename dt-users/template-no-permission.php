@@ -6,7 +6,7 @@ class Disciple_Tools_No_Permission extends DT_Magic_Url_Base
     public $magic = false;
     public $parts = false;
     public $page_title = 'Home';
-    public $root = "system_app";
+    public $root = 'system_app';
     public $type = 'no_permission';
     public $type_name = 'no_permission';
 
@@ -25,11 +25,11 @@ class Disciple_Tools_No_Permission extends DT_Magic_Url_Base
         if ( 'registered' === $url && ! dt_is_rest() ) {
 
             // register url and access
-            add_action( "template_redirect", [ $this, 'theme_redirect' ] );
+            add_action( 'template_redirect', [ $this, 'theme_redirect' ] );
             add_filter( 'dt_blank_access', [ $this, 'dt_blank_access' ], 100, 1 ); // allows non-logged in visit
 
             // header content
-            add_filter( "dt_blank_title", [ $this, "page_tab_title" ] ); // adds basic title to browser tab
+            add_filter( 'dt_blank_title', [ $this, 'page_tab_title' ] ); // adds basic title to browser tab
             add_action( 'wp_print_scripts', [ $this, 'print_scripts' ], 1500 ); // authorizes scripts
             add_action( 'wp_print_styles', [ $this, 'print_styles' ], 1500 ); // authorizes styles
 
@@ -91,7 +91,7 @@ class Disciple_Tools_No_Permission extends DT_Magic_Url_Base
             <div class="cell" style="text-align:center; padding-top:2em;">
                 <?php esc_html_e( 'You are registered but an administrator needs to assign you access permissions.', 'disciple_tools' ) ?>
                 <br><br>
-￼               <a href="<?php echo esc_url( wp_logout_url() ); ?>"><?php esc_html_e( 'Log Out', 'disciple_tools' )?></a>
+               <a href="<?php echo esc_url( wp_logout_url() ); ?>"><?php esc_html_e( 'Log Out', 'disciple_tools' )?></a>
             </div>
         </div>
         <?php

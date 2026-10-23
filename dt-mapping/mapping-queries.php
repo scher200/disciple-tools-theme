@@ -912,15 +912,15 @@ class Disciple_Tools_Mapping_Queries {
     public static function search_location_grid_by_name( $args ) {
         global $wpdb;
 
-        $search_query = $wpdb->esc_like( $args['search_query'] ?? "" );
-        $focus_search_sql = "";
-        if ( isset( $args['filter'] ) && $args["filter"] == "focus" ){
+        $search_query = $wpdb->esc_like( $args['search_query'] ?? '' );
+        $focus_search_sql = '';
+        if ( isset( $args['filter'] ) && $args['filter'] == 'focus' ){
             $default_map_settings = DT_Mapping_Module::instance()->default_map_settings();
-            if ( $default_map_settings["type"] === "country" && sizeof( $default_map_settings["children"] ) > 0 ){
-                $joined_location_grid_ids = dt_array_to_sql( $default_map_settings["children"] );
+            if ( $default_map_settings['type'] === 'country' && sizeof( $default_map_settings['children'] ) > 0 ){
+                $joined_location_grid_ids = dt_array_to_sql( $default_map_settings['children'] );
                 $focus_search_sql = "AND g.admin0_grid_id IN ( $joined_location_grid_ids ) ";
-            } elseif ( $default_map_settings["type"] === "state" && sizeof( $default_map_settings["children"] ) > 0 ){
-                $joined_location_grid_ids = dt_array_to_sql( $default_map_settings["children"] );
+            } elseif ( $default_map_settings['type'] === 'state' && sizeof( $default_map_settings['children'] ) > 0 ){
+                $joined_location_grid_ids = dt_array_to_sql( $default_map_settings['children'] );
                 $focus_search_sql = "AND g.admin1_grid_id IN ( $joined_location_grid_ids ) ";
             }
         }
@@ -934,38 +934,38 @@ class Disciple_Tools_Mapping_Queries {
                   THEN g.alt_name
                 WHEN g.level = 1
                   THEN CONCAT(
-                    g.alt_name, ' > ',
-                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1)
+                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), ' > ',
+                    g.alt_name
                   )
                 WHEN g.level = 2
                   THEN CONCAT(
-                    g.alt_name, ' > ',
+                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), ' > ',
                     (SELECT a1.alt_name FROM $wpdb->dt_location_grid AS a1 WHERE a1.grid_id = g.admin1_grid_id LIMIT 1), ' > ',
-                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1)
+                    g.alt_name
                   )
                 WHEN g.level = 3
                   THEN CONCAT(
-                    g.alt_name, ' > ',
-                    (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ',
+                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), ' > ',
                     (SELECT a1.alt_name FROM $wpdb->dt_location_grid AS a1 WHERE a1.grid_id = g.admin1_grid_id LIMIT 1), ' > ',
-                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1)
+                    (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ',
+                    g.alt_name
                   )
                 WHEN g.level = 4
                   THEN CONCAT(
-                    g.alt_name, ' > ',
-                    (SELECT a3.alt_name FROM $wpdb->dt_location_grid AS a3 WHERE a3.grid_id = g.admin3_grid_id LIMIT 1), ' > ',
-                    (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ',
+                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), ' > ',
                     (SELECT a1.alt_name FROM $wpdb->dt_location_grid AS a1 WHERE a1.grid_id = g.admin1_grid_id LIMIT 1), ' > ',
-                    (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1)
+                    (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ',
+                    (SELECT a3.alt_name FROM $wpdb->dt_location_grid AS a3 WHERE a3.grid_id = g.admin3_grid_id LIMIT 1), ' > ',
+                    g.alt_name
                   )
                 WHEN g.level >= 5
                   THEN CONCAT(
-                    g.alt_name, ' > ',
-                    if ( g.admin4_grid_id, CONCAT( (SELECT a4.alt_name FROM $wpdb->dt_location_grid AS a4 WHERE a4.grid_id = g.admin4_grid_id LIMIT 1), ' > ' ), '' ),
-                    if ( g.admin3_grid_id, CONCAT( (SELECT a3.alt_name FROM $wpdb->dt_location_grid AS a3 WHERE a3.grid_id = g.admin3_grid_id LIMIT 1), ' > ' ), '' ),
-                    if ( g.admin2_grid_id, CONCAT( (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ' ), '' ),
+                    if ( g.admin0_grid_id, CONCAT( (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), ' > ' ), '' ),
                     if ( g.admin1_grid_id, CONCAT( (SELECT a1.alt_name FROM $wpdb->dt_location_grid AS a1 WHERE a1.grid_id = g.admin1_grid_id LIMIT 1), ' > ' ), '' ),
-                    if ( g.admin0_grid_id, (SELECT country.alt_name FROM $wpdb->dt_location_grid as country WHERE country.grid_id = g.admin0_grid_id LIMIT 1), '' )
+                    if ( g.admin2_grid_id, CONCAT( (SELECT a2.alt_name FROM $wpdb->dt_location_grid AS a2 WHERE a2.grid_id = g.admin2_grid_id LIMIT 1), ' > ' ), '' ),
+                    if ( g.admin3_grid_id, CONCAT( (SELECT a3.alt_name FROM $wpdb->dt_location_grid AS a3 WHERE a3.grid_id = g.admin3_grid_id LIMIT 1), ' > ' ), '' ),
+                    if ( g.admin4_grid_id, CONCAT( (SELECT a4.alt_name FROM $wpdb->dt_location_grid AS a4 WHERE a4.grid_id = g.admin4_grid_id LIMIT 1), ' > ' ), '' ),
+                    g.alt_name
                   )
                 ELSE g.alt_name
             END as label
@@ -982,7 +982,7 @@ class Disciple_Tools_Mapping_Queries {
         );
         // phpcs:enable
 
-        $total_rows = $wpdb->get_var( "SELECT found_rows();" );
+        $total_rows = $wpdb->get_var( 'SELECT found_rows();' );
         return [
             'location_grid' => $location_grid,
             'total' => $total_rows
@@ -992,7 +992,7 @@ class Disciple_Tools_Mapping_Queries {
     public static function search_used_location_grid_by_name( $args ) {
         global $wpdb;
 
-        $search_query = $wpdb->esc_like( $args['search_query'] ?? "" );
+        $search_query = $wpdb->esc_like( $args['search_query'] ?? '' );
 
         $location_grid = $wpdb->get_results( $wpdb->prepare( "
             SELECT SQL_CALC_FOUND_ROWS
@@ -1024,7 +1024,7 @@ class Disciple_Tools_Mapping_Queries {
             ", '%' . $search_query . '%' ),
             ARRAY_A
         );
-        $total_rows = $wpdb->get_var( "SELECT found_rows();" );
+        $total_rows = $wpdb->get_var( 'SELECT found_rows();' );
         return [
             'location_grid' => $location_grid,
             'total' => $total_rows
@@ -1045,7 +1045,7 @@ class Disciple_Tools_Mapping_Queries {
         // phpcs:enable
         $prepared = [];
         foreach ( $results as $row ){
-            $prepared[$row["grid_id"]] = $row["alt_name"];
+            $prepared[$row['grid_id']] = $row['alt_name'];
         }
         return $prepared;
     }
@@ -1083,13 +1083,13 @@ class Disciple_Tools_Mapping_Queries {
         // phpcs:enable
         $mapped_location_grid_id_to_name = [];
         foreach ( $location_grid_id_names as $location_grid ){
-            $mapped_location_grid_id_to_name[$location_grid["grid_id"]] = $location_grid["alt_name"];
+            $mapped_location_grid_id_to_name[$location_grid['grid_id']] = $location_grid['alt_name'];
         }
         foreach ( $location_grids as $location_grid ){
-            if ( isset( $mapped_location_grid_id_to_name[$location_grid["meta_value"]] ) ){
-                $prepared[$location_grid["post_id"]][] = [
-                    "location_grid_id" => $location_grid["meta_value"],
-                    "name" => $mapped_location_grid_id_to_name[$location_grid["meta_value"]]
+            if ( isset( $mapped_location_grid_id_to_name[$location_grid['meta_value']] ) ){
+                $prepared[$location_grid['post_id']][] = [
+                    'location_grid_id' => $location_grid['meta_value'],
+                    'name' => $mapped_location_grid_id_to_name[$location_grid['meta_value']]
                 ];
             }
         }
@@ -1184,34 +1184,34 @@ class Disciple_Tools_Mapping_Queries {
             GROUP BY t5.admin5_grid_id;
             ",
                 // 0
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status,
                 // 1
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status,
                 // 2
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status,
                 // 3
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status,
                 // 4
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status,
                 // 5
-                $wpdb->prefix .'user_status',
+                $wpdb->prefix . 'user_status',
                 $status,
-                $wpdb->prefix .'location_grid',
+                $wpdb->prefix . 'location_grid',
                 $status
             ), ARRAY_A );
 
@@ -1273,10 +1273,10 @@ class Disciple_Tools_Mapping_Queries {
             $features[] = array(
                 'type' => 'Feature',
                 'properties' => array(
-                    "address" => $result['address'],
-                    "post_id" => $result['post_id'],
-                    "name" => $result['name'],
-                    "post_type" => $post_type
+                    'address' => $result['address'] ?? '',
+                    'post_id' => $result['post_id'],
+                    'name' => $result['name'],
+                    'post_type' => $post_type
                 ),
                 'geometry' => array(
                     'type' => 'Point',
@@ -1297,45 +1297,142 @@ class Disciple_Tools_Mapping_Queries {
         return $new_data;
     }
 
-    public static function cluster_geojson( $post_type, $query = [] ){
+    public static function post_type_geojson( $post_type, $args = [], $offset = 0, $limit = 50000 ){
+        global $wpdb;
+
+        //phpcs:disable
+        // Determine if post id filtering should take place.
+        $post_id_filter_sql = '';
+        $shared_user_join_sql = '';
+        $shared_user_condition_sql = '';
+        $post_settings = DT_Posts::get_post_settings( $post_type, false );
+        $status_field = $post_settings['status_field'] ?? [];
+        $archived = isset( $args['archived'] ) && $args['archived'] == '1';
+
+        // Determine if archive filtering should take place.
+        $field_statuses = [];
+        if ( !empty( $status_field ) ) {
+            $status_archived_key = $status_field['archived_key'];
+            $field_statuses = array_filter( DT_Posts::get_post_field_options_keys( $post_settings['fields'], $status_field['status_key'] ), function( $option ) use ( $archived, $status_archived_key ) {
+                if ( $archived ) {
+                    return true;
+                }
+
+                return $option !== $status_archived_key;
+            } );
+        }
+
+        if ( isset( $args['slug'], $args['user_id'] ) && $args['slug'] === 'personal' ) {
+            $post_id_filter_sql = $wpdb->prepare( "
+                        SELECT api_p.ID
+                        FROM $wpdb->posts api_p
+                        WHERE (api_p.post_status = 'publish')
+                          AND api_p.post_type = %s
+                          GROUP BY api_p.ID
+            ", ( ( $post_type === 'system-users' ) ? 'contacts' : $post_type ) );
+
+            if ( isset( $args['field_type'] ) && $args['field_type'] == 'user_select' ) {
+                $shared_user_join_sql = "LEFT JOIN $wpdb->dt_share as field_shared_with ON ( field_shared_with.post_id = um.meta_value )";
+                $post_id_filter_sql = 'AND (um.meta_value IN ('. $post_id_filter_sql .'))';
+            } else {
+                $shared_user_join_sql = "LEFT JOIN $wpdb->dt_share as field_shared_with ON ( field_shared_with.post_id = p.ID )";
+                $post_id_filter_sql = 'AND (p.ID IN ('. $post_id_filter_sql .'))';
+            }
+            $shared_user_condition_sql = "AND (field_shared_with.user_id = ". $args['user_id'] .")";
+        }
+
+        if ( isset( $args['field_key'], $args['field_type'] ) && in_array( $args['field_type'], [ 'key_select', 'multi_select' ] ) ){
+            $prepared_query = $wpdb->prepare( "
+                SELECT DISTINCT p.post_title AS name, lgm.post_id, lgm.lng, lgm.lat
+                  FROM $wpdb->dt_location_grid_meta AS lgm
+                  JOIN $wpdb->posts AS p ON ( p.ID = lgm.post_id )
+                  LEFT JOIN $wpdb->postmeta AS pm ON ( p.ID = pm.post_id )
+                  LEFT JOIN $wpdb->postmeta AS pms ON ( p.ID = pms.post_id )
+                  ". $shared_user_join_sql ."
+                  WHERE lgm.post_type = %s
+                  ". $shared_user_condition_sql ."
+                  AND (pm.meta_key = %s)" . ( !empty( $args['field_values'] ) ? " AND (pm.meta_value IN (" . dt_array_to_sql( $args['field_values'] ) . "))" : '' ) ."
+                  ". ( !empty( $field_statuses ) ? ( "AND ( pms.meta_key = '". $status_field['status_key'] ."' AND pms.meta_value IN ( ". dt_array_to_sql( $field_statuses ) ." ) )" ) : '' ) ."
+                  ". $post_id_filter_sql ."
+                  LIMIT %d, %d;
+              ", $post_type, $args['field_key'], $offset, $limit );
+
+        } elseif ( isset( $args['field_type'] ) && $args['field_type'] == 'user_select' ){
+            $prepared_query = $wpdb->prepare("
+                SELECT DISTINCT u.display_name AS name, um.meta_value AS post_id, lgm.lng, lgm.lat
+                  FROM $wpdb->dt_location_grid_meta AS lgm
+                  JOIN $wpdb->users AS u ON ( u.ID = lgm.post_id )
+                  LEFT JOIN $wpdb->usermeta AS um ON ( u.ID = um.user_id AND um.meta_key = %s )
+                  INNER JOIN $wpdb->usermeta AS um_cap ON ( u.ID = um_cap.user_id AND um_cap.meta_key = %s )
+                  ". $shared_user_join_sql ."
+                  WHERE lgm.post_type = %s
+                  ". $shared_user_condition_sql ."
+                  ". $post_id_filter_sql ."
+                  LIMIT %d, %d;
+              ", ( $wpdb->prefix . 'corresponds_to_contact' ), ( $wpdb->prefix . 'capabilities' ), 'users', $offset, $limit );
+
+        } else {
+            $prepared_query = $wpdb->prepare( "
+                SELECT DISTINCT p.post_title AS name, lgm.post_id, lgm.lng, lgm.lat
+                    FROM $wpdb->dt_location_grid_meta AS lgm
+                    JOIN $wpdb->posts AS p ON ( p.ID = lgm.post_id )
+                    LEFT JOIN $wpdb->postmeta AS pm ON ( p.ID = pm.post_id )
+                    ". $shared_user_join_sql ."
+                    WHERE lgm.post_type = %s
+                    ". $shared_user_condition_sql ."
+                    ". ( !empty( $field_statuses ) ? ( "AND ( pm.meta_key = '". $status_field['status_key'] ."' AND pm.meta_value IN ( ". dt_array_to_sql( $field_statuses ) ." ) )" ) : '' ) ."
+                    ". $post_id_filter_sql ."
+                    LIMIT %d, %d;
+                ", $post_type, $offset, $limit );
+        }
+
+        $results = $wpdb->get_results( $prepared_query, ARRAY_A );
+        //phpcs:enable
+
+        return self::format_results( $results, $post_type );
+    }
+
+    public static function cluster_geojson( $post_type, $query = [], $offset = 0, $limit = 50000 ){
         global $wpdb;
         $sql = DT_Posts::fields_to_sql( $post_type, $query );
-        if ( empty( $sql["where_sql"] ) ){
-            $sql["where_sql"] = "1=1";
+        if ( empty( $sql['where_sql'] ) ){
+            $sql['where_sql'] = '1=1';
         }
         //phpcs:disable
         $results = $wpdb->get_results( $wpdb->prepare( "
-            SELECT lgm.label as address, p.post_title as name, lgm.post_id, lgm.lng, lgm.lat
+            SELECT p.post_title as name, lgm.post_id, lgm.lng, lgm.lat
             FROM $wpdb->dt_location_grid_meta as lgm
             JOIN $wpdb->posts as p ON p.ID=lgm.post_id
             " . $sql["joins_sql"] . "
             WHERE lgm.post_type = %s
             AND
             " . $sql["where_sql"] . "
-            ", $post_type ), ARRAY_A
+            ORDER BY lgm.grid_meta_id
+            LIMIT %d, %d;
+            ", $post_type, $offset, $limit ), ARRAY_A
         );
         //phpcs:enable
 
         return self::format_results( $results, $post_type );
     }
 
-    public static function points_geojson( $post_type, $query = [] ){
+    public static function points_geojson( $post_type, $query = [], $offset = 0, $limit = 50000 ){
         global $wpdb;
         $sql = DT_Posts::fields_to_sql( $post_type, $query );
-        if ( empty( $sql["where_sql"] ) ){
-            $sql["where_sql"] = "1=1";
+        if ( empty( $sql['where_sql'] ) ){
+            $sql['where_sql'] = '1=1';
         }
         //phpcs:disable
         $results = $wpdb->get_results( $wpdb->prepare( "
-            SELECT lgm.label as address, p.post_title as name, lgm.post_id as post_id, lgm.lng, lgm.lat, lg.admin0_grid_id as a0, lg.admin1_grid_id as a1
+            SELECT p.post_title as name, lgm.post_id as post_id, lgm.lng, lgm.lat, lg.admin0_grid_id as a0, lg.admin1_grid_id as a1
             FROM $wpdb->dt_location_grid_meta as lgm
-            LEFT JOIN $wpdb->posts as p ON p.ID=lgm.post_id
+            JOIN $wpdb->posts as p ON p.ID=lgm.post_id
             LEFT JOIN $wpdb->dt_location_grid as lg ON lg.grid_id=lgm.grid_id
             " . $sql["joins_sql"] . "
             WHERE lgm.post_type = %s
             AND " . $sql["where_sql"] . "
-            LIMIT 40000;
-            ", $post_type ), ARRAY_A
+            LIMIT %d, %d;
+            ", $post_type, $offset, $limit ), ARRAY_A
         );
         //phpcs:enable
 
@@ -1354,8 +1451,8 @@ class Disciple_Tools_Mapping_Queries {
     public static function query_location_grid_meta_totals( $post_type, $query ) {
         global $wpdb;
         $sql = DT_Posts::fields_to_sql( $post_type, $query );
-        if ( empty( $sql["where_sql"] ) ){
-            $sql["where_sql"] = "1=1";
+        if ( empty( $sql['where_sql'] ) ){
+            $sql['where_sql'] = '1=1';
         }
 
         //phpcs:disable
@@ -1448,8 +1545,8 @@ class Disciple_Tools_Mapping_Queries {
     public static function query_under_location_grid_meta_id( $post_type, $grid_id, $query ) {
         global $wpdb;
         $sql = DT_Posts::fields_to_sql( $post_type, $query );
-        if ( empty( $sql["where_sql"] ) ){
-            $sql["where_sql"] = "1=1";
+        if ( empty( $sql['where_sql'] ) ){
+            $sql['where_sql'] = '1=1';
         }
 
         //phpcs:disable

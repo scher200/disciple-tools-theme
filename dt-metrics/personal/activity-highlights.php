@@ -23,7 +23,7 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
         $this->base_title = __( 'Personal', 'disciple_tools' );
         $this->namespace = "dt-metrics/$this->base_slug/$this->slug";
 
-        $url_path = dt_get_url_path();
+        $url_path = dt_get_url_path( true );
         if ( "metrics/$this->base_slug/$this->slug" === $url_path ) {
             add_action( 'wp_enqueue_scripts', [ $this, 'scripts' ], 10 );
         }
@@ -51,21 +51,21 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
                 ],
                 'translations' => [
                     'title' => __( 'Activity Highlights', 'disciple_tools' ),
-                    'all_time' => __( "All Time", 'disciple_tools' ),
-                    'filter_to_date_range' => __( "Filter to date range", 'disciple_tools' ),
-                    'all' => __( "All", 'disciple_tools' ),
-                    'contact' => __( "Contact", 'disciple_tools' ),
-                    'group' => __( "Group", 'disciple_tools' ),
-                    'none' => __( "None", 'disciple_tools' ),
-                    'field_I_changed' => __( "%1\$s I Changed", 'disciple_tools' ),
-                    'field_I_made' => __( "%1\$s I Made", 'disciple_tools' ),
-                    'baptism_by_me' => __( "Contacts I Baptized", 'disciple_tools' ),
-                    'field_others_changed' => __( "%1\$s changed by others on my %2\$s", 'disciple_tools' ),
-                    'baptism_by_others' => __( "Baptisms by others on my contacts", 'disciple_tools' ),
-                    'comments_I_liked' => __( "Comments I Reacted To", 'disciple_tools' ),
-                    'comments_I_posted' => __( "Comments I Posted", 'disciple_tools' ),
-                    'date' => __( "Date", 'disciple_tools' ),
-                    'baptized_by' => __( "Baptized by", 'disciple_tools' ),
+                    'all_time' => __( 'All Time', 'disciple_tools' ),
+                    'filter_to_date_range' => __( 'Filter to date range', 'disciple_tools' ),
+                    'all' => __( 'All', 'disciple_tools' ),
+                    'contact' => __( 'Contact', 'disciple_tools' ),
+                    'group' => __( 'Group', 'disciple_tools' ),
+                    'none' => __( 'None', 'disciple_tools' ),
+                    'field_I_changed' => __( '%1$s I Changed', 'disciple_tools' ),
+                    'field_I_made' => __( '%1$s I Made', 'disciple_tools' ),
+                    'baptism_by_me' => __( 'Contacts I Baptized', 'disciple_tools' ),
+                    'field_others_changed' => __( '%1$s changed by others on my %2$s', 'disciple_tools' ),
+                    'baptism_by_others' => __( 'Baptisms by others on my contacts', 'disciple_tools' ),
+                    'comments_I_liked' => __( 'Comments I Reacted To', 'disciple_tools' ),
+                    'comments_I_posted' => __( 'Comments I Posted', 'disciple_tools' ),
+                    'date' => __( 'Date', 'disciple_tools' ),
+                    'baptized_by' => __( 'Baptized by', 'disciple_tools' ),
                 ],
             ]
         );
@@ -97,42 +97,57 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             }
         } catch ( Exception $e ) {
             error_log( $e );
-            return new WP_Error( __FUNCTION__, "got error ", [ 'status' => 500 ] );
+            return new WP_Error( __FUNCTION__, 'got error ', [ 'status' => 500 ] );
         }
     }
 
     private static function check_date_string( string $str ) {
         if ( ! preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/', $str, $matches ) ) {
-            return new WP_Error( "Could not parse date, expected YYYY-MM-DD format" );
+            return new WP_Error( 'Could not parse date, expected YYYY-MM-DD format' );
         }
     }
 
     private static function get_user_highlights( $from = null, $to = null ) {
 
+        $post_types = DT_Posts::get_post_types();
+
         $contact_field_settings = DT_Posts::get_post_field_settings( 'contacts' );
 
         $data = [];
         $data['contacts_created'] = self::get_records_created( $from, $to, 'contacts' );
-        $data['quick_actions_done'] = self::get_quick_actions_done( $from, $to, $contact_field_settings );
-        $data['seeker_path_changed'] = self::get_info_added( $from, $to, 'contacts', 'seeker_path', '%', $contact_field_settings );
-        $data['milestones_added'] = self::get_info_added( $from, $to, 'contacts', 'milestones', 'milestone_%', $contact_field_settings );
 
-        $data['milestones_added_by_others'] = self::get_info_added_by_others( $from, $to, 'contacts', 'milestones', 'milestone_', $contact_field_settings );
-        $data['seeker_path_changed_by_others'] = self::get_info_added_by_others( $from, $to, 'contacts', 'seeker_path', '', $contact_field_settings );
+        if ( isset( $contact_field_settings['quick_button_no_answer'] ) ){
+            $data['quick_actions_done'] = self::get_quick_actions_done( $from, $to, $contact_field_settings );
+        }
 
-        $data['baptisms'] = self::get_baptisms( $from, $to );
-        $data['baptisms_by_others'] = self::get_baptisms_by_others( $from, $to );
+        if ( isset( $contact_field_settings['milestones'] ) ){
+            $data['milestones_added'] = self::get_info_added( $from, $to, 'contacts', 'milestones', 'milestone_%', $contact_field_settings );
+            $data['milestones_added_by_others'] = self::get_info_added_by_others( $from, $to, 'contacts', 'milestones', 'milestone_', $contact_field_settings );
+        }
+
+        if ( isset( $contact_field_settings['seeker_path'] ) ){
+            $data['seeker_path_changed_by_others'] = self::get_info_added_by_others( $from, $to, 'contacts', 'seeker_path', '', $contact_field_settings );
+            $data['seeker_path_changed'] = self::get_info_added( $from, $to, 'contacts', 'seeker_path', '%', $contact_field_settings );
+        }
+
+        if ( isset( $contact_field_settings['baptized'] ) ){
+            $data['baptisms'] = self::get_baptisms( $from, $to );
+            $data['baptisms_by_others'] = self::get_baptisms_by_others( $from, $to );
+        }
 
         $data['comments_posted'] = self::get_comments_posted( $from, $to );
         $data['comments_liked'] = self::get_comments_liked( $from, $to );
 
-        $group_field_settings = DT_Posts::get_post_field_settings( 'groups' );
-        $data['groups_created'] = self::get_records_created( $from, $to, 'groups' );
-        $data['health_metrics_added'] = self::get_info_added( $from, $to, 'groups', 'health_metrics', 'church_%', $group_field_settings );
-        $data['group_type_changed'] = self::get_info_added( $from, $to, 'groups', 'group_type', '%', $group_field_settings );
+        if ( in_array( 'groups', $post_types ) ) {
+            $group_field_settings = DT_Posts::get_post_field_settings( 'groups' );
+            $data['groups_created'] = self::get_records_created( $from, $to, 'groups' );
+            $data['health_metrics_added'] = self::get_info_added( $from, $to, 'groups', 'health_metrics', 'church_%', $group_field_settings );
+            $data['group_type_changed'] = self::get_info_added( $from, $to, 'groups', 'group_type', '%', $group_field_settings );
 
-        $data['health_metrics_added_by_others'] = self::get_info_added_by_others( $from, $to, 'groups', 'health_metrics', 'church_', $group_field_settings );
-        $data['group_type_changed_by_others'] = self::get_info_added_by_others( $from, $to, 'groups', 'group_type', '', $group_field_settings );
+            $data['health_metrics_added_by_others'] = self::get_info_added_by_others( $from, $to, 'groups', 'health_metrics', 'church_', $group_field_settings );
+            $data['group_type_changed_by_others'] = self::get_info_added_by_others( $from, $to, 'groups', 'group_type', '', $group_field_settings );
+        }
+
 
         return $data;
     }
@@ -158,11 +173,11 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
                 AND
                     user_id = %d
                 AND 1=1 "
-                               . ( $from ? " AND hist_time >= %s " : "" )
-                               . ( $to ? " AND hist_time <= %s " : "" )
-                               . "
+                               . ( $from ? ' AND hist_time >= %s ' : '' )
+                               . ( $to ? ' AND hist_time <= %s ' : '' )
+                               . '
             GROUP BY
-                action;",
+                action;',
             ...$prepare_args
         );
         $rows = $wpdb->get_results( $sql, ARRAY_A );
@@ -171,7 +186,7 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
         $records_created = empty( $rows ) ? 0 : $rows[0]['records_created'];
 
         return [
-            'field_label' => $post_settings['label_plural'],
+            'field_label' => $post_settings['label_plural'] ?? $post_type,
             'count' => $records_created,
             'label' => sprintf( esc_html__( '%1$d %2$s created', 'disciple_tools' ), $records_created, $records_created === 1 ? $post_settings['label_singular'] : $post_settings['label_plural'] ),
         ];
@@ -246,11 +261,11 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             AND
                 user_id = %d
             AND 1=1 "
-                            . ( $from ? " AND hist_time >= %s " : "" )
-                            . ( $to ? " AND hist_time <= %s " : "" )
-                            . "
+                            . ( $from ? ' AND hist_time >= %s ' : '' )
+                            . ( $to ? ' AND hist_time <= %s ' : '' )
+                            . '
             GROUP BY
-                a1.meta_value;",
+                a1.meta_value;',
             ...$prepare_args
         ), ARRAY_A );
         // phpcs:enable
@@ -258,7 +273,7 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
         $rows = self::insert_labels( $rows, $subtype, $field_settings );
 
         return [
-            'field_label' => $field_settings[$subtype]["name"],
+            'field_label' => $field_settings[$subtype]['name'] ?? $subtype,
             'rows' => $rows,
         ];
     }
@@ -293,11 +308,11 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             AND
                 user_id != %d
             AND 1=1 "
-                            . ( $from ? " AND hist_time >= %s " : "" )
-                            . ( $to ? " AND hist_time <= %s " : "" )
-                            . "
+                            . ( $from ? ' AND hist_time >= %s ' : '' )
+                            . ( $to ? ' AND hist_time <= %s ' : '' )
+                            . '
             GROUP BY
-                a1.meta_value;",
+                a1.meta_value;',
             ...$prepare_args
         ), ARRAY_A );
         // phpcs:enable
@@ -307,7 +322,7 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
         $post_settings = apply_filters( 'dt_get_post_type_settings', [], $post_type );
 
         return [
-            'field_label' => $field_settings[$subtype]['name'],
+            'field_label' => $field_settings[$subtype]['name'] ?? $subtype,
             'post_type_label' => $post_settings['label_plural'],
             'rows' => $rows,
         ];
@@ -356,10 +371,10 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             AND
                 a2.object_id = %d
             AND 1=1 "
-                            . ( $from ? " AND a1.meta_value >= %s " : "" )
-                            . ( $to ? " AND a1.meta_value <= %s " : "" )
-                            . "
-            ",
+                            . ( $from ? ' AND a1.meta_value >= %s ' : '' )
+                            . ( $to ? ' AND a1.meta_value <= %s ' : '' )
+                            . '
+            ',
             ...$prepare_args
         );
 
@@ -412,8 +427,8 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             JOIN $wpdb->posts as p
                 ON a1.object_id = p.ID
             JOIN $wpdb->p2p as p2p
-                ON p2p.p2p_from = IF(a2.field_type = 'connection to', a2.meta_value, a2.object_id)
-                AND p2p.p2p_to = IF(a2.field_type = 'connection to', a2.object_id, a2.meta_value)
+                ON p2p.p2p_from = IF(a2.field_type = 'connection to', a2.meta_value, IF(a2.object_note = 'connection to', a2.meta_value, a2.object_id))
+                AND p2p.p2p_to = IF(a2.field_type = 'connection to', a2.object_id, IF(a2.object_note = 'connection to', a2.object_id, a2.meta_value))
                 AND p2p.p2p_type = 'baptizer_to_baptized'
             WHERE
                 a1.action = 'field_update'
@@ -422,10 +437,10 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             AND
                 a2.object_id != %d
             AND 1=1 "
-                            . ( $from ? " AND a1.meta_value >= %s " : "" )
-                            . ( $to ? " AND a1.meta_value <= %s " : "" )
-                            . "
-            ",
+                            . ( $from ? ' AND a1.meta_value >= %s ' : '' )
+                            . ( $to ? ' AND a1.meta_value <= %s ' : '' )
+                            . '
+            ',
             ...$prepare_args
         );
 
@@ -456,15 +471,19 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             WHERE
                 user_id = %d
             AND 1=1 "
-                            . ( $from ? " AND comment_date >= %s " : "" )
-                            . ( $to ? " AND comment_date <= %s " : "" )
-                            . "
+                            . ( $from ? ' AND comment_date >= %s ' : '' )
+                            . ( $to ? ' AND comment_date <= %s ' : '' )
+                            . '
             ORDER BY c.comment_date desc
             LIMIT 1000
-            ", $prepare_args);
+            ', $prepare_args);
 
         $rows = $wpdb->get_results( $sql, ARRAY_A );
         // phpcs:enable
+
+        foreach ( $rows ?? [] as &$comment ){
+            $comment['comment_content'] = wp_kses( $comment['comment_content'], DT_Posts::$allowable_comment_tags );
+        }
 
         return $rows;
     }
@@ -496,12 +515,12 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             AND
                 cm.meta_key REGEXP '^reaction_'
             AND 1=1 "
-                            . ( $from ? " AND comment_date >= %s " : "" )
-                            . ( $to ? " AND comment_date <= %s " : "" )
-                            . "
+                            . ( $from ? ' AND comment_date >= %s ' : '' )
+                            . ( $to ? ' AND comment_date <= %s ' : '' )
+                            . '
             ORDER BY c.comment_date desc
             LIMIT 1000
-            ", $prepare_args);
+            ', $prepare_args);
 
         $rows = $wpdb->get_results( $sql, ARRAY_A );
         // phpcs:enable
@@ -525,6 +544,8 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
                         ? array_merge( $comments[$comment_id]['reactions'], [ $reaction ] )
                         : [ $reaction ],
                 ], $row);
+
+                $comments['comment_content'] = wp_kses( $comments['comment_content'] ?? '', DT_Posts::$allowable_comment_tags );
             }
         }
 
@@ -589,8 +610,8 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
                 WHERE
                     p.p2p_type = 'contacts_to_subassigned'
                 AND
-                    p.p2p_from = %d " : '' ) . "
-            ", $prepare_args );
+                    p.p2p_from = %d " : '' ) . '
+            ', $prepare_args );
             //phpcs:enable
 
         return $records_connected_to_sql;
@@ -634,6 +655,5 @@ class Disciple_Tools_Metrics_Personal_Activity_Highlights extends DT_Metrics_Cha
             $prepare_args[] = $epoch_timestamp ? strtotime( $to ) : $to;
         }
     }
-
 }
 new Disciple_Tools_Metrics_Personal_Activity_Highlights();

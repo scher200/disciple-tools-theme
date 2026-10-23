@@ -64,8 +64,10 @@ CSS file.
 //  @include foundation-float-classes;
 
 // Import your custom styles
+@import "components";
 @import "main";
 @import "details";
+@import "new_record";
 @import "list";
 @import "user_management";
 @import "mapbox";

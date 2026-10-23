@@ -166,7 +166,7 @@ function disciple_tools_get_private_feed_message() {
 
 // Calling your own login css so you can style it
 function disciple_tools_login_css() {
-    dt_theme_enqueue_style( 'disciple_tools_login_css', 'dt-assets/build/css/login.min.css' );
+    dt_theme_enqueue_style( 'theme_login_css', 'dt-assets/build/css/login.min.css' );
 }
 
 // changing the logo link from wordpress.org to your site
@@ -201,25 +201,37 @@ add_action( 'login_init', 'dt_security_headers_insert' );
  * Add security headers
  */
 function dt_security_headers_insert() {
-    $xss_disabled = get_option( "dt_disable_header_xss" );
-    $referer_disabled = get_option( "dt_disable_header_referer" );
-    $content_type_disabled = get_option( "dt_disable_header_content_type" );
-    $strict_transport_disabled = get_option( "dt_disable_header_strict_transport" );
+    $xss_disabled = get_option( 'dt_disable_header_xss' );
+    $referer_disabled = get_option( 'dt_disable_header_referer' );
+    $content_type_disabled = get_option( 'dt_disable_header_content_type' );
+    $strict_transport_disabled = get_option( 'dt_disable_header_strict_transport' );
     if ( !$xss_disabled ){
-        header( "X-XSS-Protection: 1; mode=block" );
+        header( 'X-XSS-Protection: 1; mode=block' );
     }
     if ( !$referer_disabled ){
-        header( "Referrer-Policy: same-origin" );
+        header( 'Referrer-Policy: same-origin' );
     }
     if ( !$content_type_disabled ){
-        header( "X-Content-Type-Options: nosniff" );
+        header( 'X-Content-Type-Options: nosniff' );
     }
     if ( !$strict_transport_disabled && is_ssl() ){
-        header( "Strict-Transport-Security: max-age=2592000" );
+        header( 'Strict-Transport-Security: max-age=2592000' );
     }
 //    header( "Content-Security-Policy: default-src 'self' https:; img-src 'self' https: data:; script-src https: 'self' 'unsafe-inline' 'unsafe-eval'; style-src  https: 'self' 'unsafe-inline'" );
 }
 
+add_filter( 'wp_admin_notice_args', 'adjust_login_notice_args' );
+function adjust_login_notice_args( $args ){
+    $is_reset = isset( $_GET['action'] ) && sanitize_text_field( wp_unslash( $_GET['action'] ) ) === 'lostpassword';
+
+    // Ensure no distinction is made between valid and invalid login attempts.
+    if ( $is_reset && isset( $args['id'] ) && $args['id'] === 'login_error' ) {
+        wp_safe_redirect( 'wp-login.php?checkemail=confirm' );
+        exit;
+    }
+
+    return $args;
+}
 
 add_filter( 'login_errors', 'login_error_messages' );
 /**
@@ -230,12 +242,23 @@ add_filter( 'login_errors', 'login_error_messages' );
  */
 function login_error_messages( $message ){
     global $errors;
-    if ( isset( $errors->errors['invalid_username'] ) || isset( $errors->errors['incorrect_password'] ) || isset( $errors->errors['invalid_email'] ) ) {
+
+    $is_reset = isset( $_GET['action'] ) && sanitize_text_field( wp_unslash( $_GET['action'] ) ) === 'lostpassword';
+
+    if ( $is_reset && ( isset( $errors->errors['invalid_username'] ) || isset( $errors->errors['invalid_email'] ) ) ) {
+        $message = __( 'Check your email for the confirmation link, then visit the', 'disciple_tools' ) . ' ' .
+            sprintf(
+                ( '<a href="%1$s" title="%2$s">%3$s</a>.' ),
+                site_url( 'wp-login.php', 'login' ),
+                __( 'Login Page', 'disciple_tools' ),
+                __( 'login page', 'disciple_tools' )
+            );
+    } else if ( isset( $errors->errors['invalidcombo'] ) || isset( $errors->errors['invalid_username'] ) || isset( $errors->errors['incorrect_password'] ) || isset( $errors->errors['invalid_email'] ) ) {
         $message = __( 'ERROR: Invalid username/password combination.', 'disciple_tools' ) . ' ' .
             sprintf(
                 ( '<a href="%1$s" title="%2$s">%3$s</a>?' ),
                 site_url( 'wp-login.php?action=lostpassword', 'login' ),
-                __( 'Reset password', 'disciple_tools' ),
+                __( 'Reset Password', 'disciple_tools' ),
                 __( 'Lost your password', 'disciple_tools' )
             );
     }
@@ -246,21 +269,25 @@ add_action( 'login_init', 'dt_redirect_logged_in' );
 //redirect already logged in users from the login page.
 function dt_redirect_logged_in() {
     global $action;
-    if ( 'logout' === $action || !is_user_logged_in() ) {
+    $user_logged_in = is_user_logged_in();
+    if ( 'logout' === $action || !is_user_logged_in() ){
         return;
     }
-    if ( !empty( $_GET["redirect_to"] ) ) {
-        wp_safe_redirect( esc_url_raw( wp_unslash( $_GET["redirect_to"] ) ) );
-    } else {
-        dt_route_front_page();
+
+    if ( $user_logged_in ) {
+        if ( $action === 'confirm_admin_email' ){
+            return;
+        }
+        if ( !empty( $_GET['redirect_to'] ) ) {
+            wp_safe_redirect( esc_url_raw( wp_unslash( $_GET['redirect_to'] ) ) );
+        }
     }
-    exit;
 }
 
 /**
  * Force password reset to remain on current site for multi-site installations.
  */
-add_filter("lostpassword_url", function ( $url, $redirect ) {
+add_filter('lostpassword_url', function ( $url, $redirect ) {
 
     $args = array( 'action' => 'lostpassword' );
 
@@ -274,11 +301,11 @@ add_filter("lostpassword_url", function ( $url, $redirect ) {
 // fixes other password reset related urls
 add_filter( 'network_site_url', function( $url, $path, $scheme ) {
 
-    if ( stripos( $url, "action=lostpassword" ) !== false ) {
+    if ( stripos( $url, 'action=lostpassword' ) !== false ) {
         return site_url( 'wp-login.php?action=lostpassword', $scheme );
     }
 
-    if ( stripos( $url, "action=resetpass" ) !== false ) {
+    if ( stripos( $url, 'action=resetpass' ) !== false ) {
         return site_url( 'wp-login.php?action=resetpass', $scheme );
     }
 
@@ -297,11 +324,11 @@ function dt_multisite_retrieve_password_message( $message, $key, $user_login, $u
     $message .= '<' . site_url( "wp-login.php?action=rp&key=$key&login=" . rawurlencode( $user_login ), 'https' ) . ">\r\n";
     return $message;
 }
-add_filter( "retrieve_password_message", 'dt_multisite_retrieve_password_message', 99, 4 );
+add_filter( 'retrieve_password_message', 'dt_multisite_retrieve_password_message', 99, 4 );
 
 // fixes email title
-add_filter("retrieve_password_title", function( $title ) {
-    return "[" . wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) . "] Password Reset";
+add_filter('retrieve_password_title', function( $title ) {
+    return '[' . wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) . '] Password Reset';
 });
 //add_filter( 'wp_handle_upload_prefilter', 'dt_disable_file_upload' ); //this breaks uploading plugins and themes
 
@@ -314,13 +341,13 @@ add_filter("retrieve_password_title", function( $title ) {
 add_filter( 'map_meta_cap', 'restrict_super_admin', 10, 4 );
 function restrict_super_admin( $caps, $cap, $user_id, $args ){
     if ( is_multisite() && is_super_admin( $user_id ) ){
-        $user = get_user_by( "ID", $user_id );
-        $expected_roles = apply_filters( 'dt_set_roles_and_permissions', [] );
+        $user = get_user_by( 'ID', $user_id );
+        $expected_roles = Disciple_Tools_Roles::get_dt_roles_and_permissions();
         $dt_roles = array_map( function ( $a ){
-            return array_keys( $a["permissions"] );
+            return array_keys( $a['permissions'] );
         }, $expected_roles );
         $dt_permissions = array_merge( ...array_values( $dt_roles ) );
-        $dt_permission_prefixes = [ "view_any_", "update_any", "delete_any", "access_" ];
+        $dt_permission_prefixes = [ 'view_any_', 'update_any', 'delete_any', 'access_' ];
         foreach ( $dt_permission_prefixes as $prefix ){
             if ( strpos( $cap, $prefix ) !== false ){
                 $dt_permissions[] = $cap;
@@ -331,7 +358,7 @@ function restrict_super_admin( $caps, $cap, $user_id, $args ){
             return $caps;
         }
         //limit the super admin to the actions the administrator or dt_admin can take on a site.
-        $roles = empty( $user->roles ) ? [ "administrator", "dt_admin" ] : $user->roles;
+        $roles = empty( $user->roles ) ? [ 'administrator', 'dt_admin' ] : $user->roles;
         //limit the super admin to the the roles they have on that site.
         $has_cap = false;
         foreach ( $roles as $role_key ){

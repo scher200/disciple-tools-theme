@@ -3,6 +3,11 @@ if ( !defined( 'ABSPATH' ) ) { exit; } // Exit if accessed directly
 
 class Disciple_Tools_Migration_0032 extends Disciple_Tools_Migration {
     public function up() {
+        //skip this migration on a new install
+        if ( dt_get_initial_install_meta( 'migration_number' ) > 32 ){
+            return;
+        }
+
         /**
          * Change contact type from media to access.
          */
@@ -19,7 +24,6 @@ class Disciple_Tools_Migration_0032 extends Disciple_Tools_Migration {
             WHERE meta_key = 'type'
             AND meta_value = 'next_gen'
         " );
-
     }
 
     public function down() {

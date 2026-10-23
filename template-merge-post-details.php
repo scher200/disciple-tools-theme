@@ -15,7 +15,7 @@ if ( empty( $post_type ) ) {
 
 // Determine permission status for given post type
 if ( ! current_user_can( 'access_' . $post_type ) ) {
-    wp_die( esc_html( sprintf( 'You do not have permission to access %s', $post_type ) ), "Permission denied", 403 );
+    wp_die( esc_html( sprintf( 'You do not have permission to access %s', $post_type ) ), 'Permission denied', 403 );
 }
 
 // Ensure required parameter ids are present
@@ -29,18 +29,28 @@ $dt_dupe_id    = sanitize_text_field( wp_unslash( $_GET['dupeid'] ) );
 
 // Ensure this is not a self-merge
 if ( $dt_current_id === $dt_dupe_id ) {
-    wp_die( esc_html( 'Self-merges not allowed!' ), "Self-merge denied", 403 );
+    wp_die( esc_html( 'Self-merges not allowed!' ), 'Self-merge denied', 403 );
 }
 
 // Grab handles to various objects and test validity
 $dt_current_post   = DT_Posts::get_post( $post_type, $dt_current_id );
 $dt_duplicate_post = DT_Posts::get_post( $post_type, $dt_dupe_id );
 if ( is_wp_error( $dt_current_post ) || is_wp_error( $dt_duplicate_post ) ) {
-    get_template_part( "403", null, is_wp_error( $dt_current_post ) ? $dt_current_post : $dt_duplicate_post );
+    get_template_part( '403', null, is_wp_error( $dt_current_post ) ? $dt_current_post : $dt_duplicate_post );
     die();
 }
 
+// Ensure oldest of the two records, defaults to primary role.
+if ( isset( $dt_current_post['post_date']['timestamp'], $dt_duplicate_post['post_date']['timestamp'] ) ) {
+    if ( $dt_duplicate_post['post_date']['timestamp'] < $dt_current_post['post_date']['timestamp'] ) {
+        $dt_temp_post = $dt_current_post;
+        $dt_current_post = $dt_duplicate_post;
+        $dt_duplicate_post = $dt_temp_post;
+    }
+}
+
 $post_settings        = DT_Posts::get_post_settings( $post_type );
+
 $post_settings_fields = DT_Posts::get_post_field_settings( $post_type, false );
 
 // Determine fields to be displayed
@@ -52,10 +62,13 @@ function merge_post_details_scripts( $args ) {
     $dependencies = [ 'jquery', 'lodash', 'shared-functions', 'typeahead-jquery' ];
     if ( DT_Mapbox_API::get_key() ) {
         DT_Mapbox_API::load_mapbox_header_scripts();
-        DT_Mapbox_API::load_mapbox_search_widget();
         $dependencies[] = 'mapbox-cookie';
-        $dependencies[] = 'mapbox-search-widget';
         $dependencies[] = 'mapbox-gl';
+
+        // load Google Geocoder if key is present.
+        if ( Disciple_Tools_Google_Geocode_API::get_key() ){
+            Disciple_Tools_Google_Geocode_API::load_google_geocoding_scripts();
+        }
     }
 
     dt_theme_enqueue_script( 'merge-post-details', 'dt-assets/js/merge-post-details.js', $dependencies, true );
@@ -108,20 +121,20 @@ get_header();
             <!-- Merge Header-->
             <main id="main_header" class="large-12 medium-12 cell" role="main">
                 <div class="bordered-box">
-                    <h2 class="center"><?php echo esc_html( sprintf( __( "Merge Duplicate %s", 'disciple_tools' ), $post_settings['label_plural'] ) )?></h2>
+                    <h2 class="center"><?php echo esc_html( sprintf( __( 'Merge Duplicate %s', 'disciple_tools' ), $post_settings['label_plural'] ) )?></h2>
                     <p class="center"
-                       style="max-width: 75%; margin-left:auto; margin-right:auto;"><?php esc_html_e( "When you merge, the primary record is updated with the values you choose, and relationships to other items are shifted to the primary record; which can be switched below.", 'disciple_tools' ) ?></p>
+                       style="max-width: 75%; margin-left:auto; margin-right:auto;"><?php esc_html_e( 'When you merge, the primary record is updated with the values you choose, and relationships to other items are shifted to the primary record; which can be switched below.', 'disciple_tools' ) ?></p>
 
                     <label>
                         <strong><?php esc_html_e( 'Copy comments to updated primary record', 'disciple_tools' ); ?></strong>
                         <input type="checkbox" id="merge_comments"
-                               name="merge_comments" <?php checked( ! isset( $_GET["comments"] ) ) ?>>
+                               name="merge_comments" <?php checked( ! isset( $_GET['comments'] ) ) ?>>
                     </label>
                     <button class='button loader submit-merge' type='button'
                             value='Merge'><?php esc_html_e( 'Merge', 'disciple_tools' ); ?></button>
 
                     <br>
-                    <span id="merge_errors"></span>
+                    <span class="merge_errors"></span>
                 </div>
             </main>
             <br>
@@ -129,7 +142,7 @@ get_header();
             <!-- Archiving Post Record -->
             <main id="main_archiving" class="large-4 medium-4 cell" role="main">
                 <div class="bordered-box">
-                    <h2 class="center"><?php esc_html_e( "Archiving", 'disciple_tools' ) ?> - <a
+                    <h2 class="center"><?php esc_html_e( 'Archiving', 'disciple_tools' ) ?> - <a
                             id="main_archiving_post_id_title_link" target="_blank"><span
                                 id="main_archiving_post_id_title"></span></a>
                     </h2>
@@ -137,37 +150,37 @@ get_header();
                     <div class="main-archiving-primary-switch-but-div">
                         <button id="main_archiving_primary_switch_but"
                                 style="text-align: center;"
-                                class="button center"><?php esc_html_e( "Use as Primary", 'disciple_tools' ) ?>
+                                class="button center"><?php esc_html_e( 'Use as Primary', 'disciple_tools' ) ?>
                         </button>
                     </div>
 
                     <input type="hidden" id="main_archiving_current_post_id"
                            value="<?php echo esc_html( $dt_current_post['ID'] ) ?>"/>
-                    <div id="main_archiving_fields_div"></div>
+                    <div id="main_archiving_fields_div" class="post-scroll-window"></div>
                 </div>
             </main>
 
             <!-- Primary Post Record -->
             <main id="main_primary" class="large-4 medium-4 cell" role="main">
                 <div class="bordered-box">
-                    <h2 class="center"><?php esc_html_e( "Primary", 'disciple_tools' ) ?> - <a
+                    <h2 class="center"><?php esc_html_e( 'Primary', 'disciple_tools' ) ?> - <a
                             id="main_primary_post_id_title_link" target="_blank"><span
                                 id="main_primary_post_id_title"></span></a>
                     </h2>
 
                     <input type="hidden" id="main_primary_current_post_id"
                            value="<?php echo esc_html( $dt_duplicate_post['ID'] ) ?>"/>
-                    <div id="main_primary_fields_div" style="margin-top: 60px;"></div>
+                    <div id="main_primary_fields_div" class="post-scroll-window" style="margin-top: 60px;"></div>
                 </div>
             </main>
 
             <!-- Updated Post Record -->
             <main id="main_updated" class="large-4 medium-4 cell" role="main">
                 <div class="bordered-box">
-                    <h2 class="center"><?php esc_html_e( "Updated", 'disciple_tools' ) ?> - #<span
+                    <h2 class="center"><?php esc_html_e( 'Updated', 'disciple_tools' ) ?> - #<span
                             id="main_updated_post_id_title"></span></h2>
 
-                    <div id="main_updated_fields_div" style="margin-top: 60px;"></div>
+                    <form id="main_updated_fields_div" class="post-scroll-window" style="margin-top: 60px;"></form>
                 </div>
             </main>
 
@@ -176,6 +189,8 @@ get_header();
                 <div class="bordered-box">
                     <button class='button loader submit-merge' type='button'
                             value='Merge'><?php esc_html_e( 'Merge', 'disciple_tools' ); ?></button>
+                    <br>
+                    <span class='merge_errors'></span>
                 </div>
             </main>
 
@@ -208,6 +223,12 @@ function render_post_fields_html( $post, $fields, $settings_fields, $field_id_pr
 
 function render_post_fields( $post, $fields, $settings_fields, $field_id_prefix, $show_field_select = true ) {
     $merge_capable_field_types = list_merge_capable_field_types();
+
+    $field_options = [
+        'connection' => [
+            'allow_add' => false,
+        ]
+    ];
     ?>
 
     <table>
@@ -217,7 +238,7 @@ function render_post_fields( $post, $fields, $settings_fields, $field_id_prefix,
 
             // Capture rendered field html
             ob_start();
-            render_field_for_display( $field, $settings_fields, $post, true, false, $field_id_prefix );
+            render_field_for_display( $field, $settings_fields, $post, true, false, $field_id_prefix, $field_options );
             $rendered_field_html = ob_get_contents();
             ob_end_clean();
 
@@ -283,7 +304,8 @@ function list_merge_capable_field_types(): array {
         'location_meta',
         'location',
         'tags',
-        'connection'
+        'connection',
+        'link'
     ];
 }
 

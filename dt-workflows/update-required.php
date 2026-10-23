@@ -18,9 +18,8 @@ class Disciple_Tools_Update_Needed {
     }
 
     public static function find_contacts_that_need_an_update(){
-        do_action( "dt_find_contacts_that_need_an_update" );
+        do_action( 'dt_find_contacts_that_need_an_update' );
     }
-
 }
 
 class Disciple_Tools_Update_Needed_Async extends Disciple_Tools_Async_Task {
@@ -33,43 +32,63 @@ class Disciple_Tools_Update_Needed_Async extends Disciple_Tools_Async_Task {
 
     protected function run_action() {
         global $wpdb;
-        $site_options           = dt_get_option( "dt_site_options" );
-        $update_needed_settings = $site_options["update_required"];
-        if ( $update_needed_settings["enabled"] === true ) {
+        $user_locale = get_user_locale();
+        $site_options = dt_get_option( 'dt_site_options' );
+        $update_needed_settings = $site_options['update_required'];
+        if ( $update_needed_settings['enabled'] === true ) {
             wp_set_current_user( 0 ); // to keep the update needed notifications from coming from a specific user.
             $current_user = wp_get_current_user();
-            $current_user->add_cap( "access_contacts" );
-            $current_user->add_cap( "dt_all_access_contacts" );
-            $field_options           = DT_Posts::get_post_field_settings( "contacts" );
-            foreach ( $update_needed_settings["options"] as $setting ) {
-                $deleted_flag = $field_options['seeker_path']['default'][ $setting['seeker_path'] ]['deleted'] ?? null;
-                if ( ! ( isset( $deleted_flag ) && ( $deleted_flag === true ) ) ) {
-                    $date                 = time() - $setting["days"] * 24 * 60 * 60; // X days in seconds
+            $current_user->add_cap( 'access_contacts' );
+            $current_user->add_cap( 'dt_all_access_contacts' );
+            $field_options = DT_Posts::get_post_field_settings( 'contacts' );
+            foreach ( $update_needed_settings['options'] as $setting ) {
+
+                $setting_status = $setting['status'] ?? null;
+                $setting_field = isset( $setting['seeker_path'] ) ? 'seeker_path' : ( $setting['field'] ?? null );
+                $setting_option = $setting['seeker_path'] ?? ( $setting['option'] ?? null );
+
+                $deleted_flag = $field_options[ $setting_field ]['default'][ $setting_option ]['deleted'] ?? null;
+                if ( ! ( isset( $deleted_flag ) && ( $deleted_flag === true ) ) && isset( $setting_status, $setting_field, $setting_option ) ) {
+                    $date = time() - $setting['days'] * 24 * 60 * 60; // X days in seconds
                     $contacts_need_update = $wpdb->get_results( $wpdb->prepare( "
                     SELECT $wpdb->posts.ID
                     FROM $wpdb->posts
                     LEFT JOIN $wpdb->postmeta AS requires_update_field ON ($wpdb->posts.ID = requires_update_field.post_id AND requires_update_field.meta_key = 'requires_update' )
                     LEFT JOIN $wpdb->postmeta AS overall_status_field ON ( $wpdb->posts.ID = overall_status_field.post_id AND overall_status_field.meta_key = 'overall_status')
-                    LEFT JOIN $wpdb->postmeta AS seeker_path_field ON ( $wpdb->posts.ID = seeker_path_field.post_id AND seeker_path_field.meta_key = 'seeker_path' )
+                    LEFT JOIN $wpdb->postmeta AS setting_field ON ( $wpdb->posts.ID = setting_field.post_id AND setting_field.meta_key = %s )
                     INNER JOIN $wpdb->postmeta AS type_field ON ( $wpdb->posts.ID = type_field.post_id AND type_field.meta_key = 'type' AND type_field.meta_value = 'access' )
                     WHERE ( requires_update_field.meta_value = '' OR requires_update_field.meta_value = '0' OR requires_update_field.meta_key IS NULL )
                     AND overall_status_field.meta_value = %s
-                    AND seeker_path_field.meta_value = %s
-                    AND %d >= ( SELECT MAX( hist_time ) FROM $wpdb->dt_activity_log WHERE object_id = $wpdb->posts.ID and user_id != 0 )
+                    AND setting_field.meta_value = %s
+                    AND %d >= GREATEST(
+                        COALESCE(( SELECT MAX( hist_time ) FROM $wpdb->dt_activity_log WHERE object_id = $wpdb->posts.ID AND user_id != 0 AND action = 'field_update' ), 0),
+                        COALESCE(( SELECT MAX( UNIX_TIMESTAMP( comment_date ) ) FROM $wpdb->comments WHERE comment_post_ID = $wpdb->posts.ID AND user_id != 0 ), 0)
+                    )
                     AND $wpdb->posts.post_type = 'contacts' AND $wpdb->posts.post_status = 'publish'
                     GROUP BY $wpdb->posts.ID ORDER BY $wpdb->posts.post_date DESC LIMIT 0, 50",
-                        esc_sql( $setting["status"] ),
-                        esc_sql( $setting["seeker_path"] ),
+                        esc_sql( $setting_field ),
+                        esc_sql( $setting_status ),
+                        esc_sql( $setting_option ),
                         $date
                     ), OBJECT );
                     foreach ( $contacts_need_update as $contact ) {
-                        $user_name    = ( "@" . dt_get_assigned_name( $contact->ID, true ) . " " ) ?? "";
-                        $comment_html = esc_html( $user_name . $setting["comment"] );
-                        DT_Posts::add_post_comment( "contacts", $contact->ID, $comment_html, "comment", [
-                            "user_id"        => 0,
-                            "comment_author" => __( "Update Needed", 'disciple_tools' )
-                        ], false, true );
-                        DT_Posts::update_post( "contacts", $contact->ID, [ "requires_update" => true ], false );
+                        $user_name = ( '@' . dt_get_assigned_name( $contact->ID, true ) . ' ' ) ?? '';
+                        $comment_html = null;
+
+                        if ( isset( $setting['comment_translations'][$user_locale] ) && !empty( $setting['comment_translations'][$user_locale] ) ) {
+                            $comment_html = esc_html( $user_name . $setting['comment_translations'][$user_locale] );
+
+                        } elseif ( isset( $setting['comment'] ) ) {
+                            $comment_html = esc_html( $user_name . $setting['comment'] );
+                        }
+
+                        if ( !empty( $comment_html ) ) {
+                            DT_Posts::add_post_comment( 'contacts', $contact->ID, $comment_html, 'comment', [
+                                'user_id'        => 0,
+                                'comment_author' => __( 'Update Needed', 'disciple_tools' )
+                            ], false, true );
+                            DT_Posts::update_post( 'contacts', $contact->ID, [ 'requires_update' => true ], false );
+                        }
                     }
                 }
             }
@@ -78,16 +97,16 @@ class Disciple_Tools_Update_Needed_Async extends Disciple_Tools_Async_Task {
         /**
          * groups
          */
-        $group_update_needed_settings = $site_options["group_update_required"];
-        if ( $group_update_needed_settings["enabled"] === true ) {
+        $group_update_needed_settings = $site_options['group_update_required'];
+        if ( $group_update_needed_settings['enabled'] === true ) {
             wp_set_current_user( 0 ); // to keep the update needed notifications from coming from a specific user.
             $current_user = wp_get_current_user();
-            $current_user->add_cap( "access_groups" );
-            $current_user->add_cap( "view_any_groups" );
-            $current_user->add_cap( "update_any_groups" );
+            $current_user->add_cap( 'access_groups' );
+            $current_user->add_cap( 'view_any_groups' );
+            $current_user->add_cap( 'update_any_groups' );
 
-            foreach ( $group_update_needed_settings["options"] as $setting ) {
-                $date                 = time() - $setting["days"] * 24 * 60 * 60; // X days in seconds
+            foreach ( $group_update_needed_settings['options'] as $setting ) {
+                $date = time() - $setting['days'] * 24 * 60 * 60; // X days in seconds
                 $groups_need_update = $wpdb->get_results( $wpdb->prepare( "
                     SELECT $wpdb->posts.ID
                     FROM $wpdb->posts
@@ -95,20 +114,33 @@ class Disciple_Tools_Update_Needed_Async extends Disciple_Tools_Async_Task {
                     LEFT JOIN $wpdb->postmeta AS group_status_field ON ( $wpdb->posts.ID = group_status_field.post_id AND group_status_field.meta_key = 'group_status' )
                     WHERE ( requires_update_field.meta_value = '' OR requires_update_field.meta_value = '0' OR requires_update_field.meta_value IS NULL )
                     AND group_status_field.meta_value = %s
-                    AND %d >= ( SELECT MAX( hist_time ) FROM $wpdb->dt_activity_log WHERE object_id = $wpdb->posts.ID and user_id != 0 )
+                    AND %d >= GREATEST(
+                        COALESCE(( SELECT MAX( hist_time ) FROM $wpdb->dt_activity_log WHERE object_id = $wpdb->posts.ID AND user_id != 0 AND action = 'field_update' ), 0),
+                        COALESCE(( SELECT MAX( UNIX_TIMESTAMP( comment_date ) ) FROM $wpdb->comments WHERE comment_post_ID = $wpdb->posts.ID AND user_id != 0 ), 0)
+                    )
                     AND $wpdb->posts.post_type = 'groups' AND $wpdb->posts.post_status = 'publish'
                     GROUP BY $wpdb->posts.ID ORDER BY $wpdb->posts.post_date DESC LIMIT 0, 50",
-                    esc_sql( $setting["status"] ),
+                    esc_sql( $setting['status'] ),
                     $date
                 ), OBJECT );
                 foreach ( $groups_need_update as $group ) {
-                    $user_name    = ( "@" . dt_get_assigned_name( $group->ID, true ) . " " ) ?? "";
-                    $comment_html = esc_html( $user_name . $setting["comment"] );
-                    DT_Posts::add_post_comment( "groups", $group->ID, $comment_html, "updated_needed", [
-                        "user_id" => 0,
-                        "comment_author" => __( "Update Needed", 'disciple_tools' )
-                    ], false, true );
-                    DT_Posts::update_post( "groups", $group->ID, [ "requires_update" => true ], false );
+                    $user_name = ( '@' . dt_get_assigned_name( $group->ID, true ) . ' ' ) ?? '';
+                    $comment_html = null;
+
+                    if ( isset( $setting['comment_translations'][$user_locale] ) && !empty( $setting['comment_translations'][$user_locale] ) ) {
+                        $comment_html = esc_html( $user_name . $setting['comment_translations'][$user_locale] );
+
+                    } elseif ( isset( $setting['comment'] ) ) {
+                        $comment_html = esc_html( $user_name . $setting['comment'] );
+                    }
+
+                    if ( !empty( $comment_html ) ) {
+                        DT_Posts::add_post_comment( 'groups', $group->ID, $comment_html, 'updated_needed', [
+                            'user_id' => 0,
+                            'comment_author' => __( 'Update Needed', 'disciple_tools' )
+                        ], false, true );
+                        DT_Posts::update_post( 'groups', $group->ID, [ 'requires_update' => true ], false );
+                    }
                 }
             }
         }

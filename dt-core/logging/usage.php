@@ -9,10 +9,11 @@ class Disciple_Tools_Usage {
      *
      * @var int
      */
-    public $version = 4;
+    public $version = 7;
 
     public function send_usage() {
-        $disabled = apply_filters( 'dt_disable_usage_report', false );
+        $disable_usage = get_option( 'dt_disable_usage_data' );
+        $disabled = apply_filters( 'dt_disable_usage_report', $disable_usage );
         if ( ! $disabled ) {
             $url = 'https://disciple.tools/wp-json/dt-usage/v1/telemetry';
             $args = [
@@ -23,7 +24,6 @@ class Disciple_Tools_Usage {
                 'body' => $this->telemetry(),
             ];
 
-
             wp_remote_post( $url, $args );
         }
     }
@@ -33,11 +33,14 @@ class Disciple_Tools_Usage {
         global $wp_version, $wp_db_version;
 
         $system_usage = $this->system_usage();
+        $countries = $this->countries_usage();
         $activity = $this->activity();
         $regions = $this->regions();
+        $languages = $this->languages();
         $users = new WP_User_Query( [ 'count_total' => true ] );
 
         $site_url = get_site_url( null, '', 'https' );
+        $site_url = str_replace( 'http://', 'https://', $site_url );
 
         //active plugins
         $network_active_plugins = get_site_option( 'active_sitewide_plugins', [] );
@@ -53,30 +56,40 @@ class Disciple_Tools_Usage {
         $using_mapbox = (bool) DT_Mapbox_API::get_key();
         $using_google_geocode = (bool) Disciple_Tools_Google_Geocode_API::get_key();
 
+        $dt_site_id = dt_site_id();
+
         $data = [
             'validator' => hash( 'sha256', time() ),
-            'site_id' => hash( 'sha256', $site_url ),
+            'site_id' => $dt_site_id,
             'usage_version' => $this->version,
             'payload' => [
 
                 // BASIC STATS
-                'site_id' => hash( 'sha256', $site_url ),
+                'site_id' => $dt_site_id,
                 'usage_version' => $this->version,
                 'php_version' => phpversion(),
                 'wp_version' => $wp_version,
                 'wp_db_version' => $wp_db_version,
                 'site_url' => $site_url,
+                'server_url' => is_multisite() ? network_site_url() : $site_url,
                 'theme_version' => disciple_tools()->version,
+                'in_debug' => defined( 'WP_DEBUG' ) && WP_DEBUG,
 
                 // SYSTEM USAGE
                 'active_contacts' => (string) $system_usage['active_contacts'] ?: '0',
                 'total_contacts' => (string) $system_usage['total_contacts'] ?: '0',
+                'contacts_countries' => (array) $countries['contacts'] ?? [],
                 'active_groups' => (string) $system_usage['active_groups'] ?: '0',
                 'total_groups' => (string) $system_usage['total_groups'] ?: '0',
+                'group_countries' => (array) $countries['groups'] ?? [],
                 'active_churches' => (string) $system_usage['active_churches'] ?: '0',
                 'total_churches' => (string) $system_usage['total_churches'] ?: '0',
+                'church_countries' => (array) $countries['churches'] ?? [],
                 'active_users' => (string) $activity['active_users'] ?: '0',
                 'total_users' => (string) $users->get_total() ?: '0',
+                'magic_link_activity' => (string) $activity['magic_link_activity'] ?: '0',
+                'magic_link_posts_updated' => (string) $activity['magic_link_posts_updated'] ?: '0',
+                'user_languages' => $languages,
                 'has_demo_data' => !empty( $system_usage['has_demo_data'] ),
 
                 'regions' => $regions ?: '0',
@@ -85,7 +98,8 @@ class Disciple_Tools_Usage {
                 //DT Usage
                 'active_plugins' => $active_plugins,
                 'using_mapbox' => $using_mapbox,
-                'using_google_geocode' => $using_google_geocode
+                'using_google_geocode' => $using_google_geocode,
+                'is_multisite' => is_multisite(),
             ],
         ];
 
@@ -166,7 +180,19 @@ class Disciple_Tools_Usage {
             AND user_id != 0
             AND from_unixtime(`hist_time`) BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE()
             AND user_id
-        ) as active_users;
+        ) as active_users,
+        (
+            SELECT COUNT(*)
+            FROM $wpdb->dt_activity_log
+            WHERE user_caps = 'magic_link'
+            AND from_unixtime(`hist_time`) BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE()
+        ) as magic_link_activity,
+        (
+            SELECT COUNT(DISTINCT object_id)
+            FROM $wpdb->dt_activity_log
+            WHERE user_caps = 'magic_link'
+            AND from_unixtime(`hist_time`) BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE()
+        ) as magic_link_posts_updated;
         ", ARRAY_A );
 
         return $results;
@@ -180,17 +206,78 @@ class Disciple_Tools_Usage {
             if ( ! empty( $map_level['children'] ) ) {
                 $data .= implode( ',', $map_level['children'] );
                 if ( $map_level['parent'] !== 'world' ){
-                    $data .= $map_level['parent'];
+                    $data .= ' ' . $map_level['parent'];
                 }
             }
             else {
-                $data .= $map_level['parent'];
+                $data .= ' ' . $map_level['parent'];
             }
         }
 
         return $data;
     }
 
+    public function countries_usage() : array {
+        global $wpdb;
+        $usage = [
+            'contacts' => [],
+            'groups' => [],
+            'churches' => []
+        ];
+        $results = $wpdb->get_results("
+            SELECT DISTINCT lg.admin0_grid_id, 'groups' as type_name
+                FROM $wpdb->posts as p
+                JOIN $wpdb->postmeta pm ON p.ID=pm.post_id AND pm.meta_key = 'location_grid'
+                LEFT JOIN $wpdb->dt_location_grid lg ON pm.meta_value=lg.grid_id
+                WHERE post_type = 'groups'
+                AND post_status = 'publish'
+            UNION ALL
+            SELECT DISTINCT lg.admin0_grid_id, 'contacts' as type_name
+                FROM $wpdb->posts as p
+                JOIN $wpdb->postmeta pm ON p.ID=pm.post_id AND pm.meta_key = 'location_grid'
+                LEFT JOIN $wpdb->dt_location_grid lg ON pm.meta_value=lg.grid_id
+                WHERE p.post_type = 'contacts'
+                AND p.post_status = 'publish'
+            UNION ALL
+            SELECT DISTINCT lg.admin0_grid_id, 'churches' as type_name
+                FROM $wpdb->posts as p
+                JOIN $wpdb->postmeta pmt ON p.ID=pmt.post_id AND pmt.meta_key = 'group_type' AND pmt.meta_value = 'church'
+                JOIN $wpdb->postmeta pm ON p.ID=pm.post_id AND pm.meta_key = 'location_grid'
+                LEFT JOIN $wpdb->dt_location_grid lg ON pm.meta_value=lg.grid_id
+                WHERE p.post_type = 'groups'
+                AND p.post_status = 'publish';
+
+            ", ARRAY_A );
+
+        if ( ! empty( $results ) ) {
+            foreach ( $results as $item ) {
+                $usage[$item['type_name']][] = $item['admin0_grid_id'];
+            }
+        }
+
+        return $usage;
+    }
+
+    private function languages() : array {
+        global $wpdb;
+        $data = [];
+
+        $raw = $wpdb->get_results($wpdb->prepare( "
+            SELECT um.meta_value as code, count(*) as total
+            FROM $wpdb->usermeta um
+            JOIN $wpdb->usermeta umc ON um.user_id=umc.user_id AND umc.meta_key = %s
+            WHERE um.meta_key = 'locale'
+            GROUP BY um.meta_value
+            ", $wpdb->prefix . 'capabilities' ), ARRAY_A );
+
+        if ( ! empty( $raw ) ) {
+            foreach ( $raw as $item ) {
+                $data[$item['code']] = $item['total'];
+            }
+        }
+
+        return $data;
+    }
 }
 
 class Disciple_Tools_Usage_Scheduler {

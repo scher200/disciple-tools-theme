@@ -12,13 +12,13 @@ abstract class DT_Magic_Url_Base {
     public $page_title = '';
     public $page_description = '';
     public $type_actions = [
-        '' => "Manage",
+        '' => 'Manage',
     ];
     public $show_bulk_send = false; // enables bulk send of magic links from list page
     public $show_app_tile = false; // enables addition to "app" tile sharing features
 
-    public $module = ""; // Lets a magic url be a module as well
-    public $instance_id = ""; // Allows having multiple versions of the same magic link for a user. Creating different meta_keys.
+    public $module = ''; // Lets a magic url be a module as well
+    public $instance_id = ''; // Allows having multiple versions of the same magic link for a user. Creating different meta_keys.
     public $meta = []; // Allows for instance specific data.
     public $translatable = [ 'query' ]; // Order of translatable flags to be checked. Translate on first hit..!
 
@@ -39,7 +39,6 @@ abstract class DT_Magic_Url_Base {
         // fail if not valid url
         $this->parts = $this->magic->parse_url_parts();
         if ( !$this->parts ){
-
             return;
         }
 
@@ -48,13 +47,25 @@ abstract class DT_Magic_Url_Base {
             return;
         }
 
+        $this->magic->determine_post_id( $this->parts );
+        if ( !empty( $this->parts['public_key'] ) && empty( $this->parts['post_id'] ) ){
+            $this->magic->redirect_to_expired_landing_page();
+        }
+
+
+        // Wider callout to ensure link is still valid.
+        if ( apply_filters( 'dt_magic_link_continue', true, $this->parts ) === false ) {
+            $this->magic->redirect_to_expired_landing_page();
+        }
+
+
         // register url and access
         add_filter( 'dt_blank_access', [ $this, '_has_access' ] ); // gives access once above tests are passed
         add_filter( 'dt_templates_for_urls', [ $this, 'register_url' ], 199, 1 ); // registers url as valid once tests are passed
         add_filter( 'dt_allow_non_login_access', function (){ // allows non-logged in visit
             return true;
         }, 100, 1 );
-        add_filter( "dt_blank_title", [ $this, "page_tab_title" ] ); // adds basic title to browser tab
+        add_filter( 'dt_blank_title', [ $this, 'page_tab_title' ] ); // adds basic title to browser tab
         add_action( 'wp_print_scripts', [ $this, 'print_scripts' ], 5 ); // authorizes scripts
         add_action( 'wp_print_footer_scripts', [ $this, 'print_scripts' ], 5 ); // authorizes scripts
         add_action( 'wp_print_styles', [ $this, 'print_styles' ], 1500 ); // authorizes styles
@@ -72,8 +83,13 @@ abstract class DT_Magic_Url_Base {
      * @return void
      */
     public function hard_switch_to_default_dt_text_domain(): void {
-        unload_textdomain( "disciple_tools" );
-        load_theme_textdomain( 'disciple_tools', get_template_directory() . '/dt-assets/translation' );
+        $locale = determine_locale();
+        $theme_lang_path = get_template_directory() . '/dt-assets/translation/';
+        $mo_file = $theme_lang_path . $locale . '.mo';
+        if ( file_exists( $mo_file ) && $locale !== 'en_US' ) {
+            unload_textdomain( 'disciple_tools' );
+            load_textdomain( 'disciple_tools', $mo_file );
+        }
     }
 
     /**
@@ -111,7 +127,7 @@ abstract class DT_Magic_Url_Base {
                     foreach ( $languages as $lang ) {
 
                         // First, ensure $lang is not already within required locale shape
-                        if ( strpos( $lang, "_" ) !== false ) {
+                        if ( strpos( $lang, '_' ) !== false ) {
                             return $lang;
                         }
 
@@ -132,6 +148,17 @@ abstract class DT_Magic_Url_Base {
             }
         }
 
+        return '';
+    }
+
+    public function fetch_incoming_browser_lang() {
+        if ( isset( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ) && !empty( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ) ) {
+            $lang_header = sanitize_text_field( wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ) );
+            $lang_parts = explode( ',', $lang_header );
+            if ( count( $lang_parts ) > 0 ) {
+                return str_replace( '-', '_', $lang_parts[0] );
+            }
+        }
         return '';
     }
 
@@ -159,6 +186,9 @@ abstract class DT_Magic_Url_Base {
                         break;
                     case 'contact':
                         $lang = $this->fetch_incoming_contact_lang( $parts );
+                        break;
+                    case 'browser':
+                        $lang = $this->fetch_incoming_browser_lang();
                         break;
                 }
                 $flag_satisfied = ! empty( $lang );
@@ -191,14 +221,14 @@ abstract class DT_Magic_Url_Base {
      */
     public function check_parts_match( $test_post_id = true ){
         if ( $test_post_id ) {
-            if ( isset( $this->parts["post_id"], $this->parts["root"], $this->parts["type"] ) ){
-                if ( $this->type === $this->parts["type"] && $this->root === $this->parts["root"] && !empty( $this->parts["post_id"] ) ){
+            if ( isset( $this->parts['post_id'], $this->parts['root'], $this->parts['type'] ) ){
+                if ( $this->type === $this->parts['type'] && $this->root === $this->parts['root'] && !empty( $this->parts['post_id'] ) ){
                     return true;
                 }
             }
         } else {
-            if ( isset( $this->parts["root"], $this->parts["type"] ) ){
-                if ( $this->type === $this->parts["type"] && $this->root === $this->parts["root"] ){
+            if ( isset( $this->parts['root'], $this->parts['type'] ) ){
+                if ( $this->type === $this->parts['type'] && $this->root === $this->parts['root'] ){
                     return true;
                 }
             }
@@ -308,7 +338,9 @@ abstract class DT_Magic_Url_Base {
      * @return bool
      */
     public function authorize_url( $authorized ){
-        if ( isset( $_SERVER['REQUEST_URI'] ) && strpos( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ), $this->root . '/v1/'.$this->type ) !== false ) {
+        $base = '/' . $this->root . '/v1/' . $this->type;
+        $route = dt_get_rest_route();
+        if ( $route === $base || strpos( $route, $base . '/' ) === 0 ) {
             $authorized = true;
         }
         return $authorized;
@@ -394,8 +426,8 @@ abstract class DT_Magic_Url_Base {
      * @note Copy function to 'extends' class to override or modify
      */
     public function _footer(){
-        $this->footer_javascript();
         wp_footer();
+        $this->footer_javascript();
     }
 
     /**
@@ -418,9 +450,9 @@ abstract class DT_Magic_Url_Base {
 
     protected function check_module_enabled_and_prerequisites(){
         $modules = dt_get_option( 'dt_post_type_modules' );
-        $module_enabled = isset( $modules[$this->module]["enabled"] ) ? $modules[$this->module]["enabled"] : false;
-        foreach ( $modules[$this->module]["prerequisites"] as $prereq ){
-            $prereq_enabled = isset( $modules[$prereq]["enabled"] ) ? $modules[$prereq]["enabled"] : false;
+        $module_enabled = isset( $modules[$this->module]['enabled'] ) ? $modules[$this->module]['enabled'] : false;
+        foreach ( $modules[$this->module]['prerequisites'] as $prereq ){
+            $prereq_enabled = isset( $modules[$prereq]['enabled'] ) ? $modules[$prereq]['enabled'] : false;
             if ( !$prereq_enabled ){
                 return false;
             }
@@ -440,4 +472,20 @@ abstract class DT_Magic_Url_Base {
         return $apps_list;
     }
 
+    /**
+     * Sets a cookie to prevent caching of the page by WPEngine
+     */
+    public function prevent_page_caching() {
+        // Problem: WPEngine caches pages heavily if users aren't logged in.
+        //   They don't provide any programmatic way to exclude pages from caching besides contacting
+        //   support to set up exclusions.
+        // See https://wpengine.com/support/cache/#Cache_Exclusions
+        // Solution: They exclude pages that have a cookie starting with wordress_
+        //   presumably to prevent caching when a user is logged in and a user cookie is set.
+        //   This hacks on that exception a little to set a random cookie starting with wordpress_
+        //   so that the magic link doesn't get cached.
+        if ( ! isset( $_COOKIE['wordpress_skipwpecache'] ) ) {
+            setcookie( 'wordpress_skipwpecache', '1', time() + WEEK_IN_SECONDS );
+        }
+    }
 }

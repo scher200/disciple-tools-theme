@@ -10,22 +10,30 @@ class Disciple_Tools_Post_Type_Template {
     public $singular;
     public $plural;
     public $search_items;
+    public $hidden;
 
     public function __construct( string $post_type, string $singular, string $plural ) {
+        $post_type_updates = get_option( 'dt_custom_post_types', [] );
         $this->post_type = $post_type;
-        $this->singular = $singular;
-        $this->plural = $plural;
-        $this->search_items = sprintf( _x( "Search %s", "Search 'something'", 'disciple_tools' ), $this->plural );
+        $this->singular = $post_type_updates[$this->post_type]['label_singular'] ?? $singular;
+        $this->plural = $post_type_updates[$this->post_type]['label_plural'] ?? $plural;
+        $this->search_items = sprintf( _x( 'Search %s', "Search 'something'", 'disciple_tools' ), $this->plural );
+        $this->hidden = $post_type_updates[$this->post_type]['hidden'] ?? false;
         add_action( 'init', [ $this, 'register_post_type' ] );
         add_action( 'init', [ $this, 'rewrite_init' ] );
         add_filter( 'post_type_link', [ $this, 'permalink' ], 1, 3 );
         add_filter( 'desktop_navbar_menu_options', [ $this, 'add_navigation_links' ], 20 );
         add_filter( 'dt_nav_add_post_menu', [ $this, 'dt_nav_add_post_menu' ], 10, 1 );
         add_filter( 'dt_templates_for_urls', [ $this, 'add_template_for_url' ] );
-        add_filter( 'dt_get_post_type_settings', [ $this, 'dt_get_post_type_settings' ], 10, 2 );
+        add_filter( "post_type_labels_$this->post_type", [ $this, 'post_type_labels' ], 10, 1 );
+        add_filter( 'dt_get_post_type_settings', [ $this, 'dt_get_post_type_settings' ], 10, 4 );
+        add_filter( 'dt_get_post_type_settings', [ $this, 'dt_get_post_type_settings_after' ], 1000, 4 );
         add_filter( 'dt_registered_post_types', [ $this, 'dt_registered_post_types' ], 10, 1 );
         add_filter( 'dt_details_additional_section_ids', [ $this, 'dt_details_additional_section_ids' ], 10, 2 );
         add_action( 'init', [ $this, 'register_p2p_connections' ], 50, 0 );
+        add_filter( 'dt_capabilities', [ $this, 'dt_capabilities' ], 50, 1 );
+        add_filter( 'dt_set_roles_and_permissions', [ $this, 'dt_set_roles_and_permissions' ], 11, 1 );
+        add_filter( 'dt_record_icon', [ $this, 'dt_record_icon' ], 100, 3 );
     }
 
     public function register_post_type(){
@@ -59,7 +67,7 @@ class Disciple_Tools_Post_Type_Template {
             'public'                => false,
             'publicly_queryable'    => true,
             'show_ui'               => true,
-            'show_in_menu'          => 'dt_post_types',
+            'show_in_menu'          => false,
             'query_var'             => false,
             'show_in_admin_bar'     => false,
             'rewrite'               => $rewrite,
@@ -71,20 +79,35 @@ class Disciple_Tools_Post_Type_Template {
             'menu_position'         => 5,
             'menu_icon'             => 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48ZyBjbGFzcz0ibmMtaWNvbi13cmFwcGVyIiBmaWxsPSIjZmZmZmZmIj48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNOSwxMmMyLjc1NywwLDUtMi4yNDMsNS01VjVjMC0yLjc1Ny0yLjI0My01LTUtNVM0LDIuMjQzLDQsNXYyQzQsOS43NTcsNi4yNDMsMTIsOSwxMnoiPjwvcGF0aD4gPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTE1LjQyMywxNS4xNDVDMTQuMDQyLDE0LjYyMiwxMS44MDYsMTQsOSwxNHMtNS4wNDIsMC42MjItNi40MjQsMS4xNDZDMS4wMzUsMTUuNzI5LDAsMTcuMjMzLDAsMTguODg2VjI0IGgxOHYtNS4xMTRDMTgsMTcuMjMzLDE2Ljk2NSwxNS43MjksMTUuNDIzLDE1LjE0NXoiPjwvcGF0aD4gPHJlY3QgZGF0YS1jb2xvcj0iY29sb3ItMiIgeD0iMTYiIHk9IjMiIGZpbGw9IiNmZmZmZmYiIHdpZHRoPSI4IiBoZWlnaHQ9IjIiPjwvcmVjdD4gPHJlY3QgZGF0YS1jb2xvcj0iY29sb3ItMiIgeD0iMTYiIHk9IjgiIGZpbGw9IiNmZmZmZmYiIHdpZHRoPSI4IiBoZWlnaHQ9IjIiPjwvcmVjdD4gPHJlY3QgZGF0YS1jb2xvcj0iY29sb3ItMiIgeD0iMTkiIHk9IjEzIiBmaWxsPSIjZmZmZmZmIiB3aWR0aD0iNSIgaGVpZ2h0PSIyIj48L3JlY3Q+PC9nPjwvc3ZnPg==',
             'show_in_nav_menus'     => false,
-            'can_export'            => false,
+            'can_export'            => true,
             'exclude_from_search'   => true,
             'show_in_rest'          => false
         ];
 
+        // Adjust defaults accordingly, prior to registration.
+        $defaults = apply_filters( 'dt_register_post_type_defaults', $defaults, $this->post_type );
         register_post_type( $this->post_type, $defaults );
-
     }
 
     public function rewrite_init(){
         add_rewrite_rule( $this->post_type . '/([0-9]+)?$', 'index.php?post_type=' . $this->post_type . '&p=$matches[1]', 'top' );
     }
 
+    public function dt_set_roles_and_permissions( $expected_roles ){
+        $custom_post_types = get_option( 'dt_custom_post_types', [] );
+        if ( empty( $custom_post_types[$this->post_type]['roles'] ) && isset( $custom_post_types[$this->post_type]['is_custom'] ) && $custom_post_types[$this->post_type]['is_custom'] ){
+            if ( isset( $expected_roles['administrator'] ) ){
+                $expected_roles['administrator']['permissions']['access_' . $this->post_type] = true;
+                $expected_roles['administrator']['permissions']['view_any_' . $this->post_type] = true;
+                $expected_roles['administrator']['permissions']['update_any_' . $this->post_type] = true;
+                $expected_roles['administrator']['permissions']['dt_all_admin_' . $this->post_type] = true;
+                $expected_roles['administrator']['permissions']['delete_any_' . $this->post_type] = true;
+                $expected_roles['administrator']['permissions']['create_' . $this->post_type] = true;
+            }
+        }
 
+        return $expected_roles;
+    }
 
     /**
      * Run on activation.
@@ -112,10 +135,11 @@ class Disciple_Tools_Post_Type_Template {
     public function add_navigation_links( $tabs ) {
         if ( current_user_can( 'access_' . $this->post_type ) ) {
             $tabs[$this->post_type] = [
-                "link" => site_url( "/$this->post_type/" ),
-                "label" => $this->plural,
+                'link' => site_url( "/$this->post_type/" ),
+                //resolved at render time rather than using $this->plural, so that any custom label translation for the current user's locale is picked up
+                'label' => DT_Posts::get_label_for_post_type( $this->post_type ),
                 'icon' => '',
-                'hidden' => false,
+                'hidden' => $this->hidden,
                 'submenu' => []
             ];
         }
@@ -123,12 +147,12 @@ class Disciple_Tools_Post_Type_Template {
     }
 
     public function dt_nav_add_post_menu( $links ){
-        if ( current_user_can( "create_" . $this->post_type ) ){
+        if ( current_user_can( 'create_' . $this->post_type ) ){
             $links[] = [
-                'label' => sprintf( esc_html__( 'New %s', 'disciple_tools' ), esc_html( $this->singular ) ),
+                'label' => sprintf( esc_html__( 'New %s', 'disciple_tools' ), esc_html( DT_Posts::get_label_for_post_type( $this->post_type, true ) ) ),
                 'link' => esc_url( site_url( '/' ) ) . esc_html( $this->post_type ) . '/new',
-                'icon' => get_template_directory_uri() . "/dt-assets/images/circle-add-green.svg",
-                'hidden' => false,
+                'icon' => get_template_directory_uri() . '/dt-assets/images/circle-add-green.svg',
+                'hidden' => $this->hidden,
             ];
         }
         return $links;
@@ -144,28 +168,35 @@ class Disciple_Tools_Post_Type_Template {
 
     public static function get_base_post_type_fields(){
         $fields = [];
-        $fields["name"] = [
-            'name' => __( "Name", 'disciple_tools' ),
+        $fields['name'] = [
+            'name' => __( 'Name', 'disciple_tools' ),
             'type' => 'text',
             'tile' => 'details',
             'in_create_form' => true,
             'required' => true,
-            'icon' => get_template_directory_uri() . "/dt-assets/images/name.svg",
-            "show_in_table" => 5
+            'icon' => get_template_directory_uri() . '/dt-assets/images/name.svg',
+            'show_in_table' => 5
         ];
-        $fields["last_modified"] =[
+        $fields['record_picture'] = [
+            'name' => __( 'Picture', 'disciple_tools' ),
+            'type' => 'image',
+            'show_in_table' => 1,
+            'hidden' => !DT_Storage_API::is_enabled(),
+            'customizable' => false,
+        ];
+        $fields['last_modified'] =[
             'name' => __( 'Last Modified', 'disciple_tools' ),
             'type' => 'date',
             'default' => 0,
-            'icon' => get_template_directory_uri() . "/dt-assets/images/calendar-range.svg",
+            'icon' => get_template_directory_uri() . '/dt-assets/images/calendar-range.svg',
             'customizable' => false,
-            "show_in_table" => 100
+            'show_in_table' => 100
         ];
-        $fields["post_date"] =[
+        $fields['post_date'] =[
             'name' => __( 'Creation Date', 'disciple_tools' ),
             'type' => 'date',
             'default' => 0,
-            'icon' => get_template_directory_uri() . "/dt-assets/images/calendar-plus.svg",
+            'icon' => get_template_directory_uri() . '/dt-assets/images/calendar-plus.svg',
             'customizable' => false,
         ];
         $fields['favorite'] = [
@@ -173,8 +204,8 @@ class Disciple_Tools_Post_Type_Template {
             'type'        => 'boolean',
             'default'     => false,
             'private'     => true,
-            "show_in_table" => 6,
-            "icon" => get_template_directory_uri() . "/dt-assets/images/star.svg"
+            'show_in_table' => 6,
+            'icon' => get_template_directory_uri() . '/dt-assets/images/star.svg'
         ];
         $fields['tags'] = [
             'name'        => __( 'Tags', 'disciple_tools' ),
@@ -182,70 +213,178 @@ class Disciple_Tools_Post_Type_Template {
             'type'        => 'tags',
             'default'     => [],
             'tile'        => 'other',
-            'icon' => get_template_directory_uri() . "/dt-assets/images/tag.svg",
+            'icon' => get_template_directory_uri() . '/dt-assets/images/tag.svg',
         ];
-        $fields["follow"] = [
+        $fields['follow'] = [
             'name'        => __( 'Follow', 'disciple_tools' ),
             'type'        => 'multi_select',
             'default'     => [],
-            'hidden'      => true
+            'hidden'      => true,
+            'customizable' => false,
         ];
-        $fields["unfollow"] = [
+        $fields['unfollow'] = [
             'name'        => __( 'Un-Follow', 'disciple_tools' ),
             'type'        => 'multi_select',
             'default'     => [],
-            'hidden'      => true
+            'hidden'      => true,
+            'customizable' => false,
         ];
         $fields['tasks'] = [
             'name' => __( 'Tasks', 'disciple_tools' ),
             'type' => 'task',
-            'icon' => get_template_directory_uri() . "/dt-assets/images/calendar-clock.svg",
-            'private' => true
+            'icon' => get_template_directory_uri() . '/dt-assets/images/calendar-clock.svg',
+            'private' => true,
+            'customizable' => false,
         ];
+        //notes field used for adding comments when creating a record
+        $fields['notes'] = [
+            'name' => 'Notes',
+            'type' => 'array',
+            'hidden' => true,
+            'customizable' => false,
+        ];
+
+        // add location fields
+        $fields['location_grid'] = [
+            'name'        => __( 'Locations', 'disciple_tools' ),
+            'description' => _x( 'The general location where this record is located.', 'Optional Documentation', 'disciple_tools' ),
+            'type'        => 'location',
+            'mapbox'    => false,
+            'in_create_form' => true,
+            'tile' => 'details',
+            'icon' => get_template_directory_uri() . '/dt-assets/images/location.svg?v=2',
+        ];
+        $fields['location_grid_meta'] = [
+            'name'        => __( 'Locations or Address', 'disciple_tools' ),
+            'type'        => 'location_meta',
+            'tile'      => 'details',
+            'mapbox'    => false,
+            'hidden' => true,
+            'in_create_form' => true,
+            'icon' => get_template_directory_uri() . '/dt-assets/images/map-marker-multiple.svg?v=2',
+        ];
+
+        if ( DT_Mapbox_API::get_key() ) {
+            $fields['location_grid']['mapbox'] = true;
+            $fields['location_grid']['hidden'] = true;
+            $fields['location_grid_meta']['mapbox'] = true;
+            $fields['location_grid_meta']['hidden'] = false;
+        }
+
         return $fields;
     }
 
-    /**
-     * Get the settings for the custom fields.
-     *
-     * @param bool $with_deleted_options
-     * @param bool $load_from_cache
-     *
-     * @return mixed
-     */
-    public function get_custom_fields_settings( $with_deleted_options = false, $load_from_cache = true ) {
-        return DT_Posts::get_post_field_settings( $this->post_type, $load_from_cache, $with_deleted_options );
-    }
-
-    public function dt_get_post_type_settings( $settings, $post_type ){
+    public function dt_get_post_type_settings( $settings, $post_type, $return_cache = true, $load_tags = false ){
         if ( $post_type === $this->post_type ){
-            $cached = wp_cache_get( $post_type . "_type_settings" );
-            if ( $cached ){
+            $cached = wp_cache_get( $post_type . '_type_settings' );
+            if ( $cached && $return_cache ){
                 return $cached;
             }
-            $fields = $this->get_custom_fields_settings();
+            $fields = DT_Posts::get_post_field_settings( $this->post_type, false, false, $load_tags );
             $channels = [];
             foreach ( $fields as $field_key => $field_value ){
-                if ( $field_value["type"] === "communication_channel" ){
-                    $field_value["label"] = $field_value["name"];
-                    $channels[str_replace( "contact_", "", $field_key )] = $field_value;
+                if ( $field_value['type'] === 'communication_channel' ){
+                    $field_value['label'] = $field_value['name'];
+                    $channels[str_replace( 'contact_', '', $field_key )] = $field_value;
                 }
             }
             $s = [
                 'fields' => $fields,
                 'channels' => $channels,
                 'connection_types' => array_keys( array_filter( $fields, function ( $a ) {
-                    return $a["type"] === "connection";
+                    return $a['type'] === 'connection';
                 } ) ),
+                'magic_link_apps' => dt_get_registered_types( true ),
                 'label_singular' => $this->singular,
                 'label_plural' => $this->plural,
-                'post_type' => $this->post_type
+                'post_type' => $this->post_type,
+                'hidden' => $this->hidden
             ];
             $settings = dt_array_merge_recursive_distinct( $settings, $s );
 
-            wp_cache_set( $post_type . "_type_settings", $settings );
+            wp_cache_set( $post_type . '_type_settings', $settings );
         }
         return $settings;
+    }
+
+    public function dt_get_post_type_settings_after( $settings, $post_type ){
+        if ( $post_type === $this->post_type ){
+            $post_type_updates = get_option( 'dt_custom_post_types', [] );
+            if ( !empty( $post_type_updates[$post_type]['label_singular'] ) ){
+                $settings['label_singular'] = $post_type_updates[$post_type]['label_singular'];
+            }
+            if ( !empty( $post_type_updates[$post_type]['label_plural'] ) ){
+                $settings['label_plural'] = $post_type_updates[$post_type]['label_plural'];
+            }
+            $settings = self::apply_label_translations( $settings, $post_type_updates[$post_type] ?? [] );
+            $settings['is_custom'] = $post_type_updates[$post_type]['is_custom'] ?? false;
+        }
+        return $settings;
+    }
+
+    /**
+     * Replace the record type labels with the admin supplied translations for the
+     * current user's locale, if any have been set.
+     *
+     * Custom labels are stored as plain strings and so are not covered by the theme's
+     * translation files. This lets an admin supply a label per language, the same way
+     * fields, field options and tiles can be translated.
+     *
+     * Deliberately not guarded with is_admin(): that would also exclude admin-ajax
+     * requests, which serve the front end. The settings screens are unaffected because
+     * the label inputs are populated from the dt_custom_post_types option directly
+     * rather than from these settings.
+     *
+     * @param array $settings
+     * @param array $post_type_updates custom settings stored for this post type
+     *
+     * @return array
+     */
+    public static function apply_label_translations( $settings, $post_type_updates ){
+        $user_locale = get_user_locale();
+        if ( !empty( $post_type_updates['label_singular_translations'][$user_locale] ) ){
+            $settings['label_singular'] = $post_type_updates['label_singular_translations'][$user_locale];
+        }
+        if ( !empty( $post_type_updates['label_plural_translations'][$user_locale] ) ){
+            $settings['label_plural'] = $post_type_updates['label_plural_translations'][$user_locale];
+        }
+        return $settings;
+    }
+
+    /**
+     * Apply the custom label translation for the current user's locale to the labels
+     * WordPress itself exposes for this post type.
+     *
+     * Plugins commonly read a record type's name through get_post_type_labels() or
+     * get_post_type_object( $post_type )->labels rather than through DT_Posts, so the
+     * translation has to reach WordPress's own labels as well. Core bakes these onto the
+     * WP_Post_Type object during registration and re-runs this filter on every direct
+     * get_post_type_labels() call, so both routes stay in step.
+     *
+     * Only the four labels the theme supplies at registration are replaced; the rest are
+     * core's defaults and are left alone.
+     *
+     * @param stdClass $labels
+     *
+     * @return stdClass
+     */
+    public function post_type_labels( $labels ){
+        $post_type_updates = get_option( 'dt_custom_post_types', [] );
+        $translated = self::apply_label_translations( [
+            'label_singular' => $this->singular,
+            'label_plural' => $this->plural,
+        ], $post_type_updates[$this->post_type] ?? [] );
+
+        if ( $translated['label_singular'] === $this->singular && $translated['label_plural'] === $this->plural ){
+            return $labels;
+        }
+
+        $labels->name = $translated['label_plural'];
+        $labels->singular_name = $translated['label_singular'];
+        $labels->menu_name = $translated['label_plural'];
+        $labels->search_items = sprintf( _x( 'Search %s', "Search 'something'", 'disciple_tools' ), $translated['label_plural'] );
+
+        return $labels;
     }
 
     public function dt_registered_post_types( $post_types ){
@@ -267,27 +406,27 @@ class Disciple_Tools_Post_Type_Template {
     public function register_p2p_connections(){
         $fields = DT_Posts::get_post_field_settings( $this->post_type, false );
         foreach ( $fields as $field_key => &$field ){
-            if ( !isset( $field["name"] ) ){
-                $field["name"] = $field_key; //set a field name so integration can depend on it.
+            if ( !isset( $field['name'] ) ){
+                $field['name'] = $field_key; //set a field name so integration can depend on it.
             }
             //register a connection if it is not set
-            if ( $field["type"] === "connection" && isset( $field["p2p_key"], $field["post_type"] ) ){
-                $p2p_type = p2p_type( $field["p2p_key"] );
+            if ( $field['type'] === 'connection' && isset( $field['p2p_key'], $field['post_type'] ) ){
+                $p2p_type = p2p_type( $field['p2p_key'] );
                 if ( $p2p_type === false ){
-                    if ( $field["p2p_direction"] === "to" ){
+                    if ( $field['p2p_direction'] === 'to' ){
                         p2p_register_connection_type(
                             [
-                                'name'        => $field["p2p_key"],
+                                'name'        => $field['p2p_key'],
                                 'to'          => $this->post_type,
-                                'from'        => $field["post_type"]
+                                'from'        => $field['post_type']
                             ]
                         );
                     } else {
                         p2p_register_connection_type(
                             [
-                                'name'        => $field["p2p_key"],
+                                'name'        => $field['p2p_key'],
                                 'from'        => $this->post_type,
-                                'to'          => $field["post_type"]
+                                'to'          => $field['post_type']
                             ]
                         );
                     }
@@ -295,50 +434,159 @@ class Disciple_Tools_Post_Type_Template {
             }
         }
     }
+    /**
+     * Declare Default D.T post roles
+     */
+    public function dt_capabilities( $capabilities ){
+        $capabilities['access_' . $this->post_type] = [
+            'source' => $this->plural,
+            'label' => 'View and Manage',
+            'description' => sprintf( 'The user can access the UI for %s and manage their %s', $this->plural, $this->plural ),
+            'post_type' => $this->post_type
+        ];
+//        $capabilities['update_'  . $this->post_type] = [
+//            'source' => $this->plural,
+//            'description' => 'The user can edit existing ' . $this->plural,
+//        ];
+        $capabilities['create_'  . $this->post_type] = [
+            'source' => $this->plural,
+            'label' => 'Create Records',
+            'description' => sprintf( 'The user can create %s', $this->plural ),
+            'post_type' => $this->post_type
+        ];
+        $capabilities['view_any_'  . $this->post_type] = [
+            'source' => $this->plural,
+            'label' => 'View All',
+            'description' => sprintf( 'The user can view any %s', $this->singular ),
+            'post_type' => $this->post_type
+        ];
+        $capabilities['update_any_'  . $this->post_type] = [
+            'source' => $this->plural,
+            'label' => 'Update Any',
+            'description' => sprintf( 'The user can update any %s', $this->singular ),
+            'post_type' => $this->post_type
+        ];
+        $capabilities['delete_any_'  . $this->post_type] = [
+            'source' => $this->plural,
+            'label' => 'Delete Any',
+            'description' => sprintf( 'The user can delete any %s', $this->singular ),
+            'post_type' => $this->post_type
+        ];
+//        $capabilities['dt_all_admin_' . $this->post_type] = [
+//            'source' => $this->plural,
+//            'label' => 'Update in WP Admin',
+//            'description' => sprintf( 'Access and update %s on the WP Admin site.', $this->plural ),
+//            'post_type' => $this->post_type
+//        ];
+        $capabilities['list_all_' .$this->post_type ] = [
+            'source' => $this->plural,
+            'label' => 'Preview All',
+            'description' => sprintf( 'The user can list all %s records, but not view record details. Useful in typeahead searches.', $this->singular ),
+            'post_type' => $this->post_type
+        ];
+
+        return $capabilities;
+    }
+
+    public function dt_record_icon( $icon, $post_type, $post_id ){
+        if ( $icon ){
+            return $icon;
+        }
+        $icon = 'mdi mdi-image-outline';
+
+        return $icon;
+    }
 }
+
+add_action( 'after_setup_theme', function (){
+    $custom_post_types = get_option( 'dt_custom_post_types', [] );
+    $already_registered = apply_filters( 'dt_registered_post_types', [] );
+
+    foreach ( $custom_post_types as $post_type_key => $post_type ){
+        if ( ( $post_type['is_custom'] ?? false ) && !in_array( $post_type_key, $already_registered, true ) ){
+            new Disciple_Tools_Post_Type_Template( $post_type_key, $post_type['label_singular'] ?? $post_type_key, $post_type['label_plural'] ?? $post_type_key );
+        }
+    }
+}, 200 );
+
+/**
+ * Set default list view permissions
+ * only need to register this hook once
+ */
+add_filter( 'dt_filter_access_permissions', function ( $permissions, $post_type ){
+    if ( DT_Posts::can_view_all( $post_type ) ){
+        $permissions = [];
+    }
+    return $permissions;
+}, 5, 2 );
 
 /**
  * Build default filter available on all post type list pages
  */
-add_filter( "dt_user_list_filters", "base_dt_user_list_filters", 100, 2 );
+add_filter( 'dt_user_list_filters', 'base_dt_user_list_filters', 100, 2 );
 function base_dt_user_list_filters( $filters, $post_type ){
     // check of the all tab is declared
     $tab_names = array_map( function ( $f ){
-        return $f["key"];
-    }, $filters["tabs"] );
+        return $f['key'];
+    }, $filters['tabs'] );
+
+    if ( !in_array( 'all', $tab_names ) && !in_array( 'default', $tab_names ) ){
+        $filters['tabs'][] = [
+            'key' => 'all',
+            'label' => __( 'Default Filters', 'disciple_tools' ),
+            'query' => [
+                'sort' => '-post_date'
+            ],
+            'order' => 10
+        ];
+        $tab_names[] = 'all';
+    }
+
     if ( in_array( 'all', $tab_names, true ) ){
 
         $filter_ids = array_map( function ( $f ){
-            return $f["ID"];
-        }, $filters["filters"] );
+            return $f['ID'];
+        }, $filters['filters'] );
 
+        // add favorite posts filter to all abb
+        if ( !in_array( 'default', $filter_ids ) && !in_array( 'all', $filter_ids ) ){
+            $post_label_plural = DT_Posts::get_post_settings( $post_type )['label_plural'];
+            $filters['filters'][] = [
+                'ID' => 'all',
+                'tab' => 'all',
+                'name' => sprintf( _x( 'All %s', 'All records', 'disciple_tools' ), $post_label_plural ),
+                'query' => [
+                    'sort' => '-post_date'
+                ],
+            ];
+        }
         // add favorite posts filter to all abb
         if ( !in_array( 'favorite', $filter_ids ) ){
             $post_type_settings = DT_Posts::get_post_settings( $post_type );
-            $filters["filters"][] = [
+            $filters['filters'][] = [
                 'ID' => 'favorite',
                 'tab' => 'all',
-                'name' => sprintf( _x( "Favorite %s", 'Favorite Contacts', 'disciple_tools' ), $post_type_settings["label_plural"] ),
+                'name' => sprintf( _x( 'Favorite %s', 'Favorite Contacts', 'disciple_tools' ), $post_type_settings['label_plural'] ),
                 'query' => [
-                    "fields" => [ "favorite" => [ "1" ] ],
-                    'sort' => "name"
+                    'fields' => [ 'favorite' => [ '1' ] ],
+                    'sort' => 'name'
                 ],
                 'labels' => [
-                    [ "id" => "1", "name" => __( "Favorite", "disciple_tools" ) ]
+                    [ 'id' => '1', 'name' => __( 'Favorite', 'disciple_tools' ) ]
                 ]
             ];
         }
         // add recently viewed filter to all tab
         if ( !in_array( 'recent', $filter_ids, true ) ){
-            $filters["filters"][] = [
+            $filters['filters'][] = [
                 'ID' => 'recent',
                 'tab' => 'all',
-                'name' => __( "My Recently Viewed", 'disciple_tools' ),
+                'name' => __( 'My Recently Viewed', 'disciple_tools' ),
                 'query' => [
                     'dt_recent' => true
                 ],
                 'labels' => [
-                    [ "id" => 'recent', 'name' => __( "Last 30 viewed", 'disciple_tools' ) ]
+                    [ 'id' => 'recent', 'name' => __( 'Last 30 viewed', 'disciple_tools' ) ]
                 ]
             ];
         }

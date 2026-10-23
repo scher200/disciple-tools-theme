@@ -1,26 +1,20 @@
 <?php
 
 add_filter( 'dt_post_type_modules', function( $modules ){
-    $modules["contacts_base"] = [
-        "name" => "Contacts",
-        "enabled" => true,
-        "locked" => true,
-        "post_type" => "contacts",
-        "description" => "Default contact functionality"
+    $modules['contacts_base'] = [
+        'name' => 'Contacts',
+        'enabled' => true,
+        'locked' => true,
+        'post_type' => 'contacts',
+        'description' => 'Default contact functionality'
     ];
-    $modules["dmm_module"] = [
-        "name" => "DMM Module",
-        "enabled" => true,
-        "prerequisites" => [ "contacts_base" ],
-        "post_type" => "contacts",
-        "description" => "Field and workflows for Disciple Making Movements"
-    ];
-    $modules["access_module"] = [
-        "name" => "Access Module",
-        "enabled" => true,
-        "prerequisites" => [ "dmm_module", "contacts_base" ],
-        "post_type" => "contacts",
-        "description" => "Field and workflows for follow-up ministries"
+    $modules['access_module'] = [
+        'name' => 'Follow-up',
+        'enabled' => true,
+        'prerequisites' => [ 'contacts_base' ],
+        'post_type' => 'contacts',
+        'description' => 'Manage incoming contacts from various sources and assign them to users for follow-up.',
+        'submodule' => true
     ];
     return $modules;
 }, 10, 1 );
@@ -35,10 +29,11 @@ new DT_Duplicate_Checker_And_Merging();
 require_once 'user-module.php';
 DT_Contacts_User::instance();
 
-require_once 'dmm-module.php';
-DT_Contacts_DMM::instance();
+require_once 'module-faith.php';
+require_once 'module-coaching.php';
+require_once 'module-baptisms.php';
 
-require_once 'access-module.php';
+require_once 'module-access.php';
 DT_Contacts_Access::instance();
 
-
+require_once 'contacts-utils.php';

@@ -27,10 +27,20 @@ function process_trigger( $trigger_id, $post, $initial_fields ) {
 
             // Fetch post type settings
             $post_type_settings = DT_Posts::get_post_settings( $post['post_type'] );
+            $post_type_settings['fields']['comments'] = [
+                'id' => 'comments',
+                'name' => 'Comments',
+                'type' => 'comments',
+            ];
+            $post_type_settings['fields']['share'] = [
+                'id' => 'share',
+                'name' => 'Share',
+                'type' => 'share',
+            ];
 
             // Iterate over returned workflows; evaluating and executing accordingly
             foreach ( $workflows as $workflow ) {
-                if ( ! empty( $workflow ) && isset( $workflow->trigger ) && ( $workflow->trigger === $trigger_id ) && Disciple_Tools_Workflows_Execution_Handler::triggered_by_condition_field( $workflow, $initial_fields ) ) {
+                if ( ! empty( $workflow ) && isset( $workflow->trigger ) && ( $workflow->trigger === $trigger_id ) && Disciple_Tools_Workflows_Execution_Handler::triggered_by_condition_field( $workflow, $trigger_id, $post, $initial_fields ) ) {
 
                     // If all conditions evaluate to true...
                     if ( Disciple_Tools_Workflows_Execution_Handler::eval_conditions( $workflow, $post, $post_type_settings ) ) {

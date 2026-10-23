@@ -1,3 +1,4 @@
+@use "sass:map";
 /************************************************
 
 Stylesheet: Main Stylesheet
@@ -43,6 +44,17 @@ color:$light-gray;
     width: 100%;
 }
 
+.small-text {
+    font-size: .8rem;
+}
+
+html {
+    --primary-color: #{map.get($foundation-palette, "primary")};
+    --secondary-color: #{map.get($foundation-palette, "secondary")};
+    --success-color: #{map.get($foundation-palette, "success")};
+    --warning-color: #{map.get($foundation-palette, "warning")};
+    --alert-color: #{map.get($foundation-palette, "alert")};
+}
 body {
     background-color: #e2e2e2;
 }
@@ -80,6 +92,64 @@ object {
     display: inline-block;
     margin-right: 5px;
     height: 15px;
+}
+
+.no-margin {
+    margin: 0;
+}
+
+.button.icon-button {
+    display: flex;
+    align-items: center;
+}
+
+.dt-tooltip {
+    position: relative;
+    display: inline-block;
+}
+.dt-action-button {
+    margin: 0;
+    background-color: #eee;
+    color: black;
+}
+.dt-action-button:hover, .dt-action-button:focus {
+    background-color: #7a7a7a;
+    color: black;
+}
+
+.dt-tooltip .tooltiptext {
+    visibility: hidden;
+    width: 140px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 130%;
+    left: 50%;
+    margin-left: -75px;
+    opacity: 1;
+    transition: opacity 0.3s;
+}
+
+.dt-tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+.dt-tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+    overflow-wrap: break-word;
+    transition: opacity 0.3s;
 }
 
 /*********************
@@ -129,6 +199,7 @@ NAVIGATION STYLES
     margin-top: 0 !important;
     padding: 0 20px;
     z-index: 999;
+    border: none;
 
     .logo-link {
         padding-inline-start:0;
@@ -176,35 +247,37 @@ NAVIGATION STYLES
             display: none;
         }
 
-        @media screen and (max-width : 1000px) {
-            .dropdown.menu>li:nth-child(n+3) {
+        @media screen and (max-width : 1040px) {
+            .dropdown.menu>li:nth-child(n+4) {
                 display: none;
             }
-            .dropdown.menu>li:nth-child(n+3) {
-                display: none;
-            }
-            .dropdown.menu #more-menu-button {
-                display: inherit;
-            }
-            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+2) {
-                display: none;
-            }
-        }
-        @media screen and (min-width: 1001px) and (max-width : 1200px) {
-            .dropdown.menu>li:nth-child(n+5) {
-                display: none;
-            }
-            .dropdown.menu>li:nth-child(n+5) {
+            .dropdown.menu>li:nth-child(n+4) {
                 display: none;
             }
             .dropdown.menu #more-menu-button {
                 display: inherit;
             }
-            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+4) {
+            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+3) {
                 display: none;
             }
         }
-        @media screen and (min-width: 1201px) and (max-width : 1400px) {
+
+        @media screen and (min-width: 1041px) and (max-width : 1140px) {
+            .dropdown.menu>li:nth-child(n+6) {
+                display: none;
+            }
+            .dropdown.menu>li:nth-child(n+6) {
+                display: none;
+            }
+            .dropdown.menu #more-menu-button {
+                display: inherit;
+            }
+            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+5) {
+                display: none;
+            }
+        }
+
+        @media screen and (min-width: 1141px) and (max-width : 1240px) {
             .dropdown.menu>li:nth-child(n+7) {
                 display: none;
             }
@@ -215,6 +288,36 @@ NAVIGATION STYLES
                 display: inherit;
             }
             .dropdown.menu #more-menu-button > ul > li:nth-child(-n+6) {
+                display: none;
+            }
+        }
+
+        @media screen and (min-width: 1241px) and (max-width : 1300px) {
+            .dropdown.menu>li:nth-child(n+8) {
+                display: none;
+            }
+            .dropdown.menu>li:nth-child(n+8) {
+                display: none;
+            }
+            .dropdown.menu #more-menu-button {
+                display: inherit;
+            }
+            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+7) {
+                display: none;
+            }
+        }
+
+        @media screen and (min-width: 1301px) and (max-width : 1400px) {
+            .dropdown.menu>li:nth-child(n+9) {
+                display: none;
+            }
+            .dropdown.menu>li:nth-child(n+9) {
+                display: none;
+            }
+            .dropdown.menu #more-menu-button {
+                display: inherit;
+            }
+            .dropdown.menu #more-menu-button > ul > li:nth-child(-n+8) {
                 display: none;
             }
         }
@@ -234,10 +337,6 @@ NAVIGATION STYLES
                 display: none;
             }
         }
-    }
-
-    .dropdown.menu .is-submenu-item a:hover {
-        background-color: #224f72
     }
 
     a {
@@ -292,6 +391,36 @@ html[dir="rtl"] #top-bar-menu {
     top: 0;
     margin-left:10px;
 }
+
+// Release notification icon in navbar
+.release-notification-icon-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+
+    .release-notification-icon {
+        color: white;
+        font-size: 28px;
+        line-height: 1;
+        position: relative;
+
+        &::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            right: -4px;
+            width: 10px;
+            height: 10px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+        }
+    }
+
+    &:hover .release-notification-icon {
+        color: #f0f0f0;
+    }
+}
 .top-bar .is-submenu-item {
     background-color: #3f729b;
     text-align: left;
@@ -301,6 +430,62 @@ html[dir="rtl"] #top-bar-menu {
         font-weight: 700;
         img {
             width:25px; margin:0 10px 0 0
+        }
+    }
+}
+
+// Mobile add new dropdown styling
+.mobile-add-buttons {
+    margin-left: 5px;
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+}
+
+.title-bar-right {
+    float: right;
+    text-align: left;
+}
+
+.title-bar-right > * {
+    float: right;
+    margin-left: 10px;
+}
+
+#mobile-add-new-dropdown {
+    background-color: #3f729b;
+    border: 1px solid #999;
+    border-radius: 4px;
+    min-width: 160px;
+    max-width: 180px;
+    padding: 4px 0;
+
+    .menu.vertical {
+        margin: 0;
+        li {
+            margin: 0;
+
+            .add-new-menu-item {
+                display: flex;
+                align-items: center;
+                padding: 12px 16px;
+                color: white;
+                text-decoration: none;
+                font-size: 14px;
+                font-weight: bold;
+                transition: background-color 0.2s;
+
+                &:hover {
+                    background-color: #4a7fa8;
+                }
+
+                img {
+                    width: 20px;
+                    height: 20px;
+                    margin-right: 12px;
+                    flex-shrink: 0;
+                }
+            }
         }
     }
 }
@@ -321,14 +506,18 @@ nav.second-bar {
     }
     box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
 
+    .buttons-row {
+        display: flex;
+        justify-content: center;
+        column-gap: 0.3rem
+    }
+
     .button {
         img {
             height: 17px;
             padding-right: 5px;
         }
         padding: 0.4em 0.75em;
-        margin-top: .2em;
-        margin-bottom: .2em;
 
         @media screen and (max-width : 639px) {
             &.follow {
@@ -337,6 +526,9 @@ nav.second-bar {
                     font-size: 22px;
                     line-height: 16px;
                 }
+            }
+            img {
+                padding-right: 0;
             }
         }
         &.favorite {
@@ -362,7 +554,6 @@ nav.second-bar {
     }
 
     input {
-        padding: 0.4em 0.75em;
         max-height: 30px;
     }
 
@@ -370,66 +561,12 @@ nav.second-bar {
     button,
     input {
         vertical-align: middle;
-        margin: 0 5px;
+        margin: 0;
 
         span {
             vertical-align: middle;
         }
     }
-    .dropdown.menu .is-submenu-item a:hover {
-        color:white;
-    }
-    .dropdown.menu .is-submenu-item:hover {
-        background-color: $primary-color;
-    }
-}
-
-.search-input {
-    margin-right: 0;
-    max-width: 200px;
-    display: inline-block;
-}
-
-.search-input__clear-button {
-    color: #3f729b;
-    font-weight: bold;
-    border: 1px solid #cacaca;
-    border-left: unset;
-    padding: 0 0.5rem;
-    display: none;
-    cursor: pointer;
-    align-items: center;
-}
-
-.search-wrapper {
-    display: inline-flex;
-    max-height: 30px;
-    transform: translateY(1px);
-}
-
-.text-input-wrapper {
-    display: inline-flex;
-    width: 200px;
-
-    input {
-        padding: 0;
-        margin: 0 !important;
-        font: inherit;
-        height: 100%;
-    }
-}
-
-nav.second-bar .advanced_search {
-    border: 1px solid #cacaca;
-    border-inline-start: 0;
-    padding: 0.15em 0.5em;
-    transform: translateX(-5px);
-    display: inline-block;
-    position: relative;
-}
-
-html[dir='rtl'] nav.second-bar .advanced_search {
-    transform: translateX(5px);
 }
 
 .advancedSearch-count {
@@ -441,27 +578,7 @@ html[dir='rtl'] nav.second-bar .advanced_search {
     left: 1.15rem;
 }
 
-#second-bar-small{
-    // transition: all .2s;
-    border-top: none;
-    &.is-stuck {
-        border-top: .5rem solid $primary-color;
-        .mobile-nav-actions {
-            display: none;
-        }
-        #record-tagline {
-            opacity:0;
-            height: 0;
-        }
-    }
-    .grid-x {
-        margin-bottom: .3rem;
-    }
-    #record-tagline {
-        transition: all .3s;
-        opacity:1;
-    }
-}
+
 .off-canvas-list {
     ul {
         margin-left: 0;
@@ -541,6 +658,10 @@ POSTS & CONTENT STYLES
         padding: 1rem 0;
         margin-left: 5px;
         margin-right: 5px;
+
+        /* Makes sure the inner-content area is no less than the full height of the screen.
+         * This prevents dropdowns or other elements from being cut off on short pages */
+        min-height: 100vh;
     }
 
     article {
@@ -791,6 +912,13 @@ button.loader {
     display: inline-block;
 }
 /**
+  Select field
+ */
+select.select-field {
+    margin: 0
+}
+
+/**
   Typeaheads
  */
 .scrollable-typeahead .typeahead__list {
@@ -808,7 +936,7 @@ button.loader {
 }
 
 .typeahead__container {
-    margin-bottom: 10px;
+    //margin-bottom: 10px;
 
     .typeahead__image_button {
         padding-top: 3px;
@@ -953,31 +1081,6 @@ html[dir='rtl'] {
 .dt-green,
 a.dt-green:hover {
     background-color: #4CAF50;
-}
-//
-.dt_tooltip {
-    position: relative;
-    display: inline-block;
-    //border-bottom: 1px dotted black;
-}
-
-.dt_tooltip .tooltiptext {
-    visibility: hidden;
-    width: 120px;
-    background-color: black;
-    color: #fff;
-    text-align: center;
-    border-radius: 6px;
-    padding: 5px 0;
-    /* Position the tooltip */
-    position: absolute;
-    z-index: 1;
-    top: -5px;
-    right: 105%;
-}
-
-.dt_tooltip:hover .tooltiptext {
-    visibility: visible;
 }
 
 #content {
@@ -1141,6 +1244,19 @@ div.help-more h5 {
 .dropdown.menu > li.is-dropdown-submenu-parent > a.menu-white-dropdown-arrow:after {
     border-color: #FFF transparent transparent;
 }
+
+.dropdown.menu .is-submenu-item:hover {
+    background-color: $primary-color;
+    color: white;
+}
+.dropdown.menu .is-submenu-item a:hover {
+    color:white;
+    img {
+        filter: invert(100%) sepia(100%) saturate(6%) hue-rotate(105deg) brightness(102%) contrast(102%);
+    }
+
+}
+
 @media screen and (max-width : 640px) {
     table.js-list {
         tbody tr:nth-child(even) {
@@ -1199,7 +1315,7 @@ div.help-more h5 {
 
 #generation_map ul {
     list-style: none;
-    background: url("../../../dt-assets/images/vline.png") repeat-y;
+    background: url("../images/vline.png") repeat-y;
     margin: 0;
     padding: 0;
     margin-left: 50px;
@@ -1213,13 +1329,13 @@ div.help-more h5 {
     margin: 0;
     padding: 0 12px;
     line-height: 20px;
-    background: url("../../../dt-assets/images/node.png") no-repeat;
+    background: url("../images/node.png") no-repeat;
     color: #369;
     font-weight: bold;
 }
 
 #generation_map ul li.last {
-    background: #fff url("../../../dt-assets/images/lastnode.png") no-repeat;
+    background: #fff url("../images/lastnode.png") no-repeat;
 }
 
 #generation_map .first-section {
@@ -1372,6 +1488,131 @@ label.dt-switch:active:after {
             }
             margin-bottom: 4px;
         }
+
+        /* Custom elements default to inline; block + margin-bottom so gaps apply reliably. */
+        dt-location,
+        dt-location-map {
+            display: block;
+            margin-bottom: 2rem;
+        }
+
+        .settings-user-languages-multiselect {
+            display: block;
+            --success-color: var(--primary-color);
+            margin-bottom: 2rem;
+        }
+
+        .settings-people-groups-connection {
+            display: block;
+        }
+    }
+
+    /* Your Apps: center App Link + App Activation; hide visible dt-toggle label (app name is in first column; label prop still sets aria-label for assistive tech). */
+    #apps {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+
+        .form-table {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .form-table tbody td {
+            vertical-align: middle;
+        }
+
+        .form-table thead td:nth-child(3),
+        .form-table thead td:nth-child(4),
+        .form-table tbody td:nth-child(3),
+        .form-table tbody td:nth-child(4) {
+            text-align: center;
+        }
+
+        /* Icon-only link + copy: same footprint so stacked buttons align. */
+        .form-table tbody td:nth-child(3) .app-link,
+        .form-table tbody td:nth-child(3) .app-copy {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            min-width: 2.5rem;
+            min-height: 2.5rem;
+            margin-inline: auto;
+            margin-bottom: 0.35rem;
+            padding: 0;
+            box-sizing: border-box;
+            line-height: 1;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        .form-table tbody td:nth-child(4) dt-toggle.settings-app-toggle {
+            display: block;
+            width: fit-content;
+            max-width: 100%;
+            margin-inline: auto;
+        }
+
+        .form-table tbody td dt-toggle.settings-app-toggle::part(label-container) {
+            display: none;
+        }
+
+        .form-table tbody td dt-toggle.settings-app-toggle::part(root) {
+            margin-bottom: 0;
+        }
+    }
+
+    /* Notifications matrix: dt-toggle label duplicates row + column headers; hide visually only (control keeps aria-label). */
+    #notifications {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+
+        .form-table {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .form-table tbody td {
+            vertical-align: middle;
+        }
+
+        /* Channel columns: compact, centered headers and content (toggles / “required”). */
+        .form-table thead td:not(:first-child),
+        .form-table tbody td:not(:first-child) {
+            width: 1%;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .form-table thead td:first-child {
+            text-align: start;
+        }
+
+        .form-table tbody td:not(:first-child) dt-toggle {
+            display: block;
+            width: fit-content;
+            max-width: 100%;
+            margin-inline: auto;
+        }
+
+        .form-table tbody td:first-child {
+            word-break: break-word;
+        }
+
+        .form-table tbody td dt-toggle.settings-notification-toggle:not(.settings-follow-all-toggle)::part(label-container) {
+            display: none;
+        }
+
+        .form-table tbody td dt-toggle.settings-notification-toggle:not(.settings-follow-all-toggle)::part(root) {
+            margin-bottom: 0;
+        }
+
+        .settings-follow-all-toggle {
+            margin-top: 0.5rem;
+        }
     }
 }
 
@@ -1408,6 +1649,33 @@ img.dt-red-icon, i.dt-red-icon {
 }
 img.dt-black-icon, i.dt-black-icon {
     filter: invert(0%) sepia(0%) saturate(17%) hue-rotate(193deg) brightness(99%) contrast(101%);
+}
+
+/**
+ * Metrics - Gen-Mapper
+ */
+
+.dt-metrics-plus-count {
+    font-size: 12px;
+    font-weight: bold;
+    vertical-align: text-bottom;
+}
+
+.dt-metrics-node-icon-small {
+    font-size: 15px;
+    min-width: 15px;
+    min-height: 15px;
+    max-width: 15px;
+    max-height: 15px;
+}
+
+/**
+ * Metrics - Gen-Mapper
+ */
+
+
+.error-text {
+    color: red;
 }
 
 .template-new-post {
@@ -1459,12 +1727,74 @@ img.dt-black-icon, i.dt-black-icon {
 
         }
     }
+    .error-text {
+        text-align: center;
+    }
 }
 @media screen and (max-width : 640px) {
     .template-new-post .type-option {
         flex-basis: 100%;
         margin-bottom: 1.25em;
     }
+}
+
+/*
+ * Record History
+ */
+
+#record_history_activities {
+    min-height: 500px;
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 20px;
+}
+
+.record-history-activity-block {
+    border-radius: 5px;
+    border: 1px solid #e8e8e8;
+    margin-bottom: 10px;
+    min-height: 70px;
+    max-height: 70px;
+    padding: 10px;
+
+    .record-history-activity-block-body {
+        font-family: Arial, Helvetica, sans-serif;
+
+        .record-history-activity-heading {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .record-history-activity-gravatar {
+            display: flex;
+            align-items: center;
+
+            img {
+                margin-right: 10px;
+            }
+        }
+
+        .record-history-activity-owner {
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .record-history-activity-date {
+            font-weight: normal;
+            font-size: 13px;
+            color: #989898;
+        }
+    }
+
+    .record-history-activity-block-controls {
+
+    }
+}
+
+.record-history-activity-block:hover {
+    cursor: pointer;
+    color: #989898;
+    border: 1px solid #000000;
 }
 
 /*
@@ -1925,6 +2255,12 @@ img.dt-black-icon, i.dt-black-icon {
     font-weight: bold;
 }
 
+.communication-channel-error {
+    color: red;
+    font-style: italic;
+    margin: -12px 0 12px 0;
+}
+
 /**
  * Bulk Record Adding
  */
@@ -2015,3 +2351,4 @@ img.dt-black-icon, i.dt-black-icon {
         }
     }
 }
+

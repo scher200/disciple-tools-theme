@@ -7,13 +7,13 @@ if ( ! function_exists( 'dt_write_log' ) ) {
             global $dt_write_log_microtime;
             $now = microtime( true );
             if ( $dt_write_log_microtime > 0 ) {
-                $elapsed_log = sprintf( "[elapsed:%5dms]", ( $now - $dt_write_log_microtime ) * 1000 );
+                $elapsed_log = sprintf( '[elapsed:%5dms]', ( $now - $dt_write_log_microtime ) * 1000 );
             } else {
-                $elapsed_log = "[elapsed:-------]";
+                $elapsed_log = '[elapsed:-------]';
             }
             $dt_write_log_microtime = $now;
             if ( is_array( $log ) || is_object( $log ) ) {
-                error_log( $elapsed_log . " " . print_r( $log, true ) );
+                error_log( $elapsed_log . ' ' . print_r( $log, true ) );
             } else {
                 error_log( "$elapsed_log $log" );
             }
@@ -191,7 +191,7 @@ $GLOBALS['dt_mapping'] = $dt_mapping;
 
 /** Add location grid database name */
 global $wpdb;
-$wpdb->dt_location_grid = $wpdb->prefix .'dt_location_grid';
+$wpdb->dt_location_grid = apply_filters( 'dt_location_grid_table', $wpdb->prefix . 'dt_location_grid' );
 $wpdb->dt_location_grid_meta = $wpdb->prefix . 'dt_location_grid_meta';
 
 /*******************************************************************************************************************

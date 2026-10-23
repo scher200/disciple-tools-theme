@@ -8,7 +8,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
 {
 
     //slug and title of the top menu folder
-    public $base_slug = 'combined'; // lowercase
+    public $base_slug = 'records'; // lowercase
     public $base_title;
     public $title;
     public $slug = 'hover_map'; // lowercase
@@ -22,12 +22,12 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
         if ( !$this->has_permission() ){
             return;
         }
-        $this->title = __( 'Hover Map', 'disciple_tools' );
+        $this->title = __( 'Simple Map', 'disciple_tools' );
         $this->base_title = __( 'Project', 'disciple_tools' );
 
         $this->namespace = "dt-metrics/$this->base_slug/$this->slug";
 
-        $url_path = dt_get_url_path();
+        $url_path = dt_get_url_path( true );
         if ( "metrics/$this->base_slug/$this->slug" === $url_path ) {
 
             add_action( 'wp_enqueue_scripts', [ $this, 'mapping_scripts' ], 89 );
@@ -62,7 +62,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
                 'current_user_login' => wp_get_current_user()->user_login,
                 'current_user_id' => get_current_user_id(),
                 'translations' => [
-                    'title' => __( 'Hover Map', 'disciple_tools' )
+                    'title' => __( 'Simple Map', 'disciple_tools' )
                 ]
             ]
         );
@@ -77,9 +77,13 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
         //get initial data
         $data = DT_Mapping_Module::instance()->data();
 
+        $post_types = DT_Posts::get_post_types();
+
         $data = $this->add_contacts_column( $data );
-        $data = $this->add_groups_column( $data );
-        $data = $this->add_churches_column( $data );
+        if ( in_array( 'groups', $post_types ) ) {
+            $data = $this->add_groups_column( $data );
+            $data = $this->add_churches_column( $data );
+        }
         $data = $this->add_users_column( $data );
 
         return $data;
@@ -94,7 +98,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
         register_rest_route(
             $this->namespace, '/data', [
                 [
-                    'methods'  => "GET",
+                    'methods'  => 'GET',
                     'callback' => [ $this, 'system_map_endpoint' ],
                     'permission_callback' => '__return_true',
                 ],
@@ -104,11 +108,11 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
 
     public function system_map_endpoint( WP_REST_Request $request ){
         if ( !$this->has_permission() ) {
-            return new WP_Error( "hover_map", "Missing Permissions", [ 'status' => 400 ] );
+            return new WP_Error( 'hover_map', 'Missing Permissions', [ 'status' => 400 ] );
         }
         $params = $request->get_params();
 
-        return $this->data( isset( $params["refresh"] ) && $params["refresh"] === "true" );
+        return $this->data( isset( $params['refresh'] ) && $params['refresh'] === 'true' );
     }
 
 
@@ -144,7 +148,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
                         $i                         = 0;
                         while ( $i <= $next_column_number ) {
                             $column_data[$grid_id][$i] = 0;
-                            $i ++;
+                            $i++;
                         }
                     }
 
@@ -189,7 +193,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
                         $i                         = 0;
                         while ( $i <= $next_column_number ) {
                             $column_data[$grid_id][$i] = 0;
-                            $i ++;
+                            $i++;
                         }
                     }
 
@@ -234,7 +238,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
                         $i                         = 0;
                         while ( $i <= $next_column_number ) {
                             $column_data[$grid_id][$i] = 0;
-                            $i ++;
+                            $i++;
                         }
                     }
 
@@ -284,7 +288,7 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
                         $i                         = 0;
                         while ( $i <= $next_column_number ) {
                             $column_data[$grid_id][$i] = 0;
-                            $i ++;
+                            $i++;
                         }
                     }
 
@@ -298,8 +302,5 @@ class DT_Metrics_Hover_Map extends DT_Metrics_Chart_Base
         $data['custom_column_data']   = $column_data;
         return $data;
     }
-
 }
 new DT_Metrics_Hover_Map();
-
-

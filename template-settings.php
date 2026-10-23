@@ -28,7 +28,7 @@ $translations = dt_get_available_languages( true );
 
 $dt_user_locale = get_user_locale( $dt_user->ID );
 
-$contact_fields = DT_Posts::get_post_settings( "contacts" )["fields"];
+$contact_fields = DT_Posts::get_post_settings( 'contacts' )['fields'];
 
 /**
  * Filter for adding user apps to the settings area.
@@ -36,6 +36,57 @@ $contact_fields = DT_Posts::get_post_settings( "contacts" )["fields"];
  */
 $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
 
+// Multiplier locations
+$user_location = Disciple_Tools_Users::get_user_location( $dt_user->ID );
+
+// Multiplier Languages
+$settings_user_languages = get_user_option( 'user_languages', get_current_user_id() ) ?: [];
+// Sequential keys => JSON array; sparse/assoc user meta encodes as object and breaks Lit (.includes).
+$settings_language_value = array_values( array_map( 'strval', $settings_user_languages ) );
+
+// Multiplier People Groups
+$settings_people_group_ids = get_user_option( 'user_people_groups', get_current_user_id() ) ?: [];
+$settings_people_group_rows = DT_Posts::get_post_names_from_ids( $settings_people_group_ids );
+$settings_people_groups_connection_value = array_map(
+    function ( $row ) {
+        $row['ID'] = (int) $row['ID'];
+        if ( !isset( $row['permalink'] ) ) {
+            $row['permalink'] = get_permalink( $row['ID'] );
+        }
+        return $row;
+    },
+    $settings_people_group_rows
+);
+
+$multiplier_values = array_merge([
+    'languages' => $settings_language_value,
+    'people_groups' => $settings_people_groups_connection_value,
+], $user_location);
+
+$multiplier_fields = [
+    'location_grid_meta' => [
+        'name' => __( 'Locations you are willing to be responsible for', 'disciple_tools' ),
+        'type'        => 'location_meta',
+        'icon' => get_template_directory_uri() . '/dt-assets/images/map-marker-multiple.svg?v=2',
+    ],
+    'location_grid' => [
+        'name' => __( 'Locations you are willing to be responsible for', 'disciple_tools' ),
+        'type'        => 'location',
+        'icon' => get_template_directory_uri() . '/dt-assets/images/map-marker-multiple.svg?v=2',
+    ],
+    'languages' => [
+        'name' => __( 'Languages you are comfortable speaking', 'disciple_tools' ),
+        'type' => 'multi_select',
+        'icon' => get_template_directory_uri() . '/dt-assets/images/languages.svg',
+        'default' => $contact_fields['languages']['default'],
+    ],
+    'people_groups' => [
+        'name' => __( 'People Groups you wish to serve', 'disciple_tools' ),
+        'type' => 'connection',
+        'post_type' => 'peoplegroups',
+        'icon' => get_template_directory_uri() . '/dt-assets/images/people-group.svg',
+    ],
+];
 ?>
 
 <?php get_header(); ?>
@@ -71,7 +122,7 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
 
                         <?php endif; ?>
 
-                        <?php if ( $dt_user_contact_id && DT_Posts::can_view( "contacts", $dt_user_contact_id ) ): ?>
+                        <?php if ( $dt_user_contact_id && DT_Posts::can_view( 'contacts', $dt_user_contact_id ) ): ?>
 
                             <li>
                                 <a href="<?php echo esc_html( home_url( '/contacts/' . $dt_user_contact_id ) ); ?>"><?php esc_html_e( 'View Contact Record', 'disciple_tools' ) ?>
@@ -124,7 +175,17 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
 
                             <div class="small-12 medium-4 cell">
 
-                                <p><?php echo get_avatar( $dt_user->ID, '150' ); ?></p>
+                                <p>
+                                    <?php
+                                    if ( DT_Storage_API::is_enabled() && isset( $dt_user_meta['dt_user_profile_picture'][0] ) ) {
+                                        $picture_url = DT_Storage_API::get_file_url( $dt_user_meta['dt_user_profile_picture'][0] ); ?>
+                                        <img src="<?php echo esc_attr( $picture_url ); ?>" alt="" width="150px" height="150px" />
+                                        <?php
+                                    } else {
+                                        echo get_avatar( $dt_user->ID, '150', null, false, array( 'scheme' => 'https' ) );
+                                    }
+                                    ?>
+                                </p>
 
                                 <p>
                                     <strong><?php esc_html_e( 'Username', 'disciple_tools' )?></strong><br>
@@ -138,16 +199,16 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                     </p>
                                 <?php endif; ?>
 
-                                <?php if ( ! empty( $dt_user->nickname ) ) : ?>
+                                <?php if ( ! empty( $dt_user->display_name ) ) : ?>
                                     <p>
                                         <strong dir="auto"><?php esc_html_e( 'Nickname (Display Name)', 'disciple_tools' )?></strong><br>
-                                        <span dir="auto"><?php echo esc_html( $dt_user->nickname ); ?></span>
+                                        <span dir="auto"><?php echo esc_html( $dt_user->display_name ); ?></span>
                                     </p>
                                 <?php endif; ?>
 
                                 <p>
                                     <strong><?php esc_html_e( 'Roles', 'disciple_tools' ); ?></strong><br>
-                                    <?php echo esc_html( implode( ", ", dt_get_user_role_names( get_current_user_id() ) ) ); ?>
+                                    <?php echo esc_html( implode( ', ', dt_get_user_role_names( get_current_user_id() ) ) ); ?>
                                 </p>
 
                             </div>
@@ -231,8 +292,8 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                 ?>
 
                                 <!-- gender -->
-                                <strong style="display: inline-block"><?php echo esc_html( $contact_fields[$field_key]["name"] ) ?></strong>
-                                <p><?php echo esc_html( isset( $contact_fields[$field_key]["default"][$user_field]["label"] ) ? $contact_fields[$field_key]["default"][$user_field]["label"] : $user_field ); ?></p>
+                                <strong style="display: inline-block"><?php echo esc_html( $contact_fields[$field_key]['name'] ) ?></strong>
+                                <p><?php echo esc_html( isset( $contact_fields[$field_key]['default'][$user_field]['label'] ) ? $contact_fields[$field_key]['default'][$user_field]['label'] : $user_field ); ?></p>
                             </div>
                         </div>
 
@@ -278,22 +339,31 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                         }
                                         ?>
                                         <tr>
-                                            <td class="tall-3"><?php echo esc_html( $app_value["label"] )?></td>
-                                            <td class="tall-3"><?php echo esc_html( $app_value["description"] )?></td>
+                                            <td class="tall-3"><?php echo esc_html( $app_value['label'] )?></td>
+                                            <td class="tall-3"><?php echo esc_html( $app_value['description'] )?></td>
                                             <td class="tall-3" id="app_link_<?php echo esc_attr( $app_key )?>" data-url-base="<?php echo esc_url( $app_url_base ) ?>">
-                                                <?php if ( $app_link ) { ?>
-                                                    <a class="button small"  href="<?php echo esc_url( $app_link ) ?>" title="<?php esc_html_e( 'link', 'disciple_tools' ) ?>"><i class="fi-link"></i></a>
-                                                    <button class="button small copy_to_clipboard" data-value="<?php echo esc_url( $app_link ) ?>" title="<?php esc_html_e( 'copy', 'disciple_tools' ) ?>"><i class="fi-page-copy"></i></button>
-                                                <?php } ?>
+                                                <a class="app-link button small"
+                                                   href="<?php echo esc_url( $app_link ) ?>"
+                                                   title="<?php esc_html_e( 'link', 'disciple_tools' ) ?>"
+                                                   style="<?php echo esc_html( $app_link ? '' : 'display:none' ); ?>">
+                                                  <i class="fi-link"></i>
+                                                </a>
+                                                <button class="app-copy dt-tooltip button small copy_to_clipboard"
+                                                        data-value="<?php echo esc_url( $app_link ) ?>"
+                                                        style="<?php echo esc_html( $app_link ? '' : 'display:none' ); ?>">
+                                                  <span class="tooltiptext"><?php esc_html_e( 'Copy', 'disciple_tools' ); ?></span>
+                                                  <i class="fi-page-copy"></i>
+                                                </button>
                                             </td>
                                             <td class="tall-3">
-                                                <input class="switch-input" id="app_state_<?php echo esc_attr( $app_key )?>" type="checkbox" name="follow_all"
-                                                       onclick="app_switch('<?php echo esc_attr( $app_key )?>');" <?php ( isset( $dt_user_meta[ $wpdb->prefix . $app_key] ) ) ? print esc_attr( 'checked' ) : print esc_attr( '' ); ?> />
-                                                <label class="switch-paddle" for="app_state_<?php echo esc_attr( $app_key )?>">
-                                                    <span class="show-for-sr"><?php esc_html_e( 'Enable', 'disciple_tools' )?></span>
-                                                    <span class="switch-active" aria-hidden="true" style="color:white;"><?php esc_html_e( 'Yes', 'disciple_tools' )?></span>
-                                                    <span class="switch-inactive" aria-hidden="false"><?php esc_html_e( 'No', 'disciple_tools' )?></span>
-                                                </label>
+                                                <dt-toggle
+                                                    id="<?php echo esc_attr( 'app_state_' . $app_key ); ?>"
+                                                    name="<?php echo esc_attr( 'app_state_' . $app_key ); ?>"
+                                                    class="settings-app-toggle"
+                                                    data-app-key="<?php echo esc_attr( $app_key ); ?>"
+                                                    label="<?php echo esc_attr( __( 'Enable', 'disciple_tools' ) ); ?>"
+                                                    <?php echo isset( $dt_user_meta[ $wpdb->prefix . $app_key ] ) ? 'checked' : ''; ?>
+                                                ></dt-toggle>
                                             </td>
                                         </tr>
                                         <?php
@@ -319,87 +389,42 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
 
                             <!-- Locations -->
                             <?php if ( DT_Mapbox_API::get_key() ) : /* If Mapbox is enabled. */?>
-                                <strong><?php esc_html_e( "Locations you are willing to be responsible for", 'disciple_tools' ) ?><a class="button clear float-right" id="new-mapbox-search"><?php esc_html_e( "add", 'disciple_tools' ) ?></a></strong>
-                                <div id="mapbox-wrapper"></div>
+                                <?php DT_Components::render_location_meta( 'location_grid_meta', $multiplier_fields, $multiplier_values ) ?>
                             <?php else : ?>
-                                <div class="section-subheader cell">
-                                    <img src="<?php echo esc_url( get_template_directory_uri() ) . "/dt-assets/images/location.svg" ?>">
-                                    <?php esc_html_e( "Locations you are willing to be responsible for", 'disciple_tools' ) ?>
-                                </div>
-                                <div class="location_grid">
-                                    <var id="location_grid-result-container" class="result-container"></var>
-                                    <div id="location_grid_t" name="form-location_grid" class="scrollable-typeahead typeahead-margin-when-active">
-                                        <div class="typeahead__container">
-                                            <div class="typeahead__field">
-                                                <span class="typeahead__query">
-                                                    <input class="js-typeahead-location_grid input-height"
-                                                           name="location_grid[query]"
-                                                           placeholder="<?php esc_html_e( "Search Locations", 'disciple_tools' ) ?>"
-                                                           autocomplete="off">
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <?php DT_Components::render_location( 'location_grid', $multiplier_fields, $multiplier_values ) ?>
                             <?php endif; ?>
 
-
                             <!-- Languages -->
-                            <div class="section-subheader cell" style="margin-top:30px">
-                                <img src="<?php echo esc_url( get_template_directory_uri() ) . "/dt-assets/images/languages.svg" ?>">
-                                <strong style="display: inline-block;"><?php esc_html_e( 'Languages you are comfortable speaking', 'disciple_tools' )?></strong>
-                                <span id="languages-spinner" style="display: inline-block" class="loading-spinner"></span>
-                            </div>
-                            <div class="small button-group" style="display: inline-block">
-                                <?php foreach ( $contact_fields["languages"]["default"] as $option_key => $option_value ): ?>
-                                    <?php
-                                    $user_languages = get_user_option( 'user_languages', get_current_user_id() );
-                                    $class = ( in_array( $option_key, $user_languages ?: [] ) ) ?
-                                        "selected-select-button" : "empty-select-button"; ?>
-                                    <button id="<?php echo esc_html( $option_key ) ?>" data-field-key="<?php echo esc_html( "languages" ) ?>"
-                                            class="dt_multi_select <?php echo esc_html( $class ) ?> select-button button ">
-                                        <?php echo esc_html( $contact_fields["languages"]["default"][$option_key]["label"] ) ?>
-                                    </button>
-                                <?php endforeach; ?>
-                            </div>
-
+                            <?php DT_Components::render_multi_select( 'languages', $multiplier_fields, $multiplier_values, [
+                                'class' => 'settings-user-languages-multiselect',
+                                'field_id_prefix' => 'settings-user-',
+                                'icon_alt_text' => __( 'Languages', 'disciple_tools' ),
+                            ]) ?>
 
                             <!-- People Groups -->
-                            <?php if ( isset( $contact_fields["people_groups"]["name"] ) ): ?>
-                            <div class="section-subheader cell" style="margin-top:20px">
-                                <img src="<?php echo esc_url( get_template_directory_uri() ) . "/dt-assets/images/people-group.svg" ?>">
-                                <?php esc_html_e( 'People Groups you wish to serve', 'disciple_tools' ); ?>
-                            </div>
-                            <div class="people_groups full-width">
-                                <var id="people_groups-result-container" class="result-container"></var>
-                                <div id="people_groups_t" name="form-people_groups" class="scrollable-typeahead">
-                                    <div class="typeahead__container">
-                                        <div class="typeahead__field">
-                                            <span class="typeahead__query">
-                                                <input class="js-typeahead-people_groups"
-                                                       name="people_groups[query]"
-                                                       placeholder="<?php echo esc_html( sprintf( _x( "Search %s", "Search 'something'", 'disciple_tools' ), $contact_fields["people_groups"]["name"] ) )?>"
-                                                       autocomplete="off">
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <?php if ( isset( $contact_fields['people_groups']['name'] ) ) : ?>
+                                <?php DT_Components::render_connection( 'people_groups', $multiplier_fields, $multiplier_values, [
+                                    'class' => 'settings-people-groups-connection',
+                                    'field_id_prefix' => 'settings-',
+                                    'icon_alt_text' => __( 'People groups', 'disciple_tools' ),
+                                    'allow_add' => false,
+                                ]) ?>
+
                             <?php endif; ?>
                         </div>
 
                         <div class="small-12 medium-6 cell" style="border-left: 1px solid lightgrey; padding-left: 1em;">
                             <!-- Workload -->
                             <div class="section-subheader cell">
-                                <?php esc_html_e( "Availability to receive contacts from the Dispatcher", 'disciple_tools' ) ?>
+                                <?php esc_html_e( 'Availability to receive contacts from the Dispatcher', 'disciple_tools' ) ?>
                                 <span id="workload-spinner" style="display: inline-block" class="loading-spinner"></span>
                             </div>
 
-                            <?php $options = dt_get_site_custom_lists()["user_workload_status"] ?? [];
+                            <?php $options = Disciple_Tools_Users::get_users_fields()['workload_status']['options'] ?? [];
                             foreach ( $options as $option_key => $option_val ) :
-                                $icon = $option_key === "active" ? "play" : ( $option_key === "existing" ? "pause" : "stop" ); ?>
+                                $icon = $option_key === 'active' ? 'play' : ( $option_key === 'existing' ? 'pause' : 'stop' ); ?>
                                 <button style="display: block" class="button hollow status-button" name="<?php echo esc_html( $option_key ) ?>">
-                                    <i class="fi-<?php echo esc_html( $icon ) ?>"></i> <?php echo esc_html( $option_val["label"] )?>
+                                    <i class="fi-<?php echo esc_html( $icon ) ?>"></i> <?php echo esc_html( $option_val['label'] )?>
                                 </button>
                             <?php endforeach; ?>
                         </div>
@@ -413,11 +438,11 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                         <span class="section-header"><?php esc_html_e( 'Availability', 'disciple_tools' )?></span>
                         <hr/>
 
-                        <p><?php esc_html_e( "Set the dates you will be traveling or unavailable so the Dispatcher will know your availability to receive new contacts", 'disciple_tools' ) ?></p>
+                        <p><?php esc_html_e( 'Set the dates you will be traveling or unavailable so the Dispatcher will know your availability to receive new contacts', 'disciple_tools' ) ?></p>
 
                         <p>
                             <strong>
-                                <?php esc_html_e( "Schedule Travel or Dates Unavailable", 'disciple_tools' ) ?>
+                                <?php esc_html_e( 'Schedule Travel or Dates Unavailable', 'disciple_tools' ) ?>
                             </strong>
                         </p>
                         <div style="display: flex; justify-content: flex-start; align-items: center">
@@ -434,7 +459,7 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                 <div class="end_date"><input type="text" class="date-picker" id="end_date" autocomplete="off"></div>
                             </div>
                             <div style="display: flex;">
-                                <button id="add_unavailable_dates" class="button" disabled style="margin: 0;"><?php esc_html_e( "Add Unavailable dates", 'disciple_tools' ) ?></button>
+                                <button id="add_unavailable_dates" class="button" disabled style="margin: 0;"><?php esc_html_e( 'Add Unavailable dates', 'disciple_tools' ) ?></button>
                                 <div id="add_unavailable_dates_spinner" style="display: inline-block" class="loading-spinner"></div>
                             </div>
                         </div>
@@ -442,13 +467,13 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                             <table class="hover stack-for-small striped">
                                 <thead>
                                 <tr>
-                                    <th><?php esc_html_e( "Start Date", 'disciple_tools' ) ?></th>
-                                    <th><?php esc_html_e( "End Date", 'disciple_tools' ) ?></th>
+                                    <th><?php esc_html_e( 'Start Date', 'disciple_tools' ) ?></th>
+                                    <th><?php esc_html_e( 'End Date', 'disciple_tools' ) ?></th>
                                     <th></th>
                                 </tr>
                                 </thead>
                                 <tbody id="unavailable-list">
-                                <tr><td><?php esc_html_e( "No Travel Scheduled", 'disciple_tools' ) ?></td></tr>
+                                <tr><td><?php esc_html_e( 'No Travel Scheduled', 'disciple_tools' ) ?></td></tr>
                                 </tbody>
 
                             </table>
@@ -466,6 +491,26 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                         </button>
                         <span class="section-header"><?php esc_html_e( 'Notifications', 'disciple_tools' )?></span>
                         <hr/>
+
+                        <p>
+                            <strong><?php esc_html_e( 'Contact Info', 'disciple_tools' ) ?></strong>
+                        </p>
+                        <div>
+                            <ul>
+                                <li><?php echo esc_html( sprintf( _x( 'Email notifications will be sent to: %s', 'Email will be sent to: [email]', 'disciple_tools' ), $dt_user->user_email ?? esc_html( '[email]', 'disciple_tools' ) ) ); ?></li>
+                            </ul>
+                            <?php
+                            foreach ( apply_filters( 'dt_communication_channel_notification_endpoints_text', [], $dt_user->ID ) ?? [] as $endpoint_text ) {
+                                if ( !empty( $endpoint_text ) ) {
+                                    ?>
+                                    <ul>
+                                        <li><?php echo esc_html( $endpoint_text ); ?>&nbsp;&nbsp;<button data-open="edit-profile-modal"><i class="fi-pencil"></i></button></li>
+                                    </ul>
+                                    <?php
+                                }
+                            }
+                            ?>
+                        </div>
 
                         <?php $email_preference = isset( $dt_user_meta['email_preference'] ) ? $dt_user_meta['email_preference'][0] : null ?>
                         <p>
@@ -491,31 +536,38 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                             <thead>
                             <tr>
                                 <td><?php esc_html_e( 'Type of Notification', 'disciple_tools' )?></td>
-                                <?php foreach ( $dt_site_notification_defaults["channels"] as $channel_key => $channel_value ) : ?>
-                                    <td><?php echo esc_html( $channel_value["label"] )?></td>
+                                <?php foreach ( $dt_site_notification_defaults['channels'] as $channel_key => $channel_value ) : ?>
+                                    <td><?php echo esc_html( $channel_value['label'] )?></td>
                                 <?php endforeach; ?>
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ( $dt_site_notification_defaults["types"] as $dt_notification_key => $dt_notification_default ) : ?>
+                            <?php foreach ( $dt_site_notification_defaults['types'] as $dt_notification_key => $dt_notification_default ) : ?>
                                 <tr>
-                                    <td class="tall-4"><?php echo esc_html( $dt_notification_default["label"] )?></td>
-                                    <?php foreach ( $dt_site_notification_defaults["channels"] as $channel_key => $channel_value ) : ?>
+                                    <td class="tall-4"><?php echo esc_html( $dt_notification_default['label'] )?></td>
+                                    <?php foreach ( $dt_site_notification_defaults['channels'] as $channel_key => $channel_value ) : ?>
                                         <td>
                                             <?php if ( $dt_notification_default[$channel_key] ) : ?>
-                                                <div style="height:2em;"><?php esc_html_e( "required", 'disciple_tools' ) ?></div>
+                                                <div style="height:2em;"><?php esc_html_e( 'required', 'disciple_tools' ) ?></div>
                                             <?php else :
                                                 $channel_notification_key = $dt_notification_key . '_' . $channel_key;
+                                                $checked = dt_user_notification_is_enabled( $dt_notification_key, $channel_key, $dt_user_meta, $dt_user->ID );
+                                                $toggle_notice_label = sprintf(
+                                                    /* translators: 1: notification type, 2: channel (e.g. email) */
+                                                    __( '%1$s — %2$s', 'disciple_tools' ),
+                                                    $dt_notification_default['label'],
+                                                    $channel_value['label']
+                                                );
                                                 ?>
-                                                <div class="switch">
-                                                    <input class="switch-input" id="<?php echo esc_html( $channel_notification_key ) ?>" type="checkbox"
-                                                           name="<?php echo esc_html( $channel_notification_key ) ?>"
-                                                           onclick="switch_preference( '<?php echo esc_html( $channel_notification_key ) ?>', 'notifications' );"
-                                                        <?php print esc_attr( ( isset( $dt_user_meta[$channel_notification_key ] ) && $dt_user_meta[$channel_notification_key ][0] == false ) ? '' : 'checked' ); ?>>
-                                                    <label class="switch-paddle inactive" for="<?php echo esc_html( $channel_notification_key ) ?>">
-                                                        <span class="show-for-sr"><?php echo esc_html( $dt_notification_default['label'] ) ?></span>
-                                                    </label>
-                                                </div>
+                                                <dt-toggle
+                                                    id="<?php echo esc_attr( $channel_notification_key ); ?>"
+                                                    name="<?php echo esc_attr( $channel_notification_key ); ?>"
+                                                    class="settings-notification-toggle"
+                                                    data-preference-key="<?php echo esc_attr( $channel_notification_key ); ?>"
+                                                    data-preference-type="notifications"
+                                                    label="<?php echo esc_attr( $toggle_notice_label ); ?>"
+                                                    <?php checked( $checked ); ?>
+                                                ></dt-toggle>
                                             <?php endif; ?>
                                         </td>
                                     <?php endforeach; ?>
@@ -524,20 +576,19 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                             </tbody>
                         </table>
 
-                        <?php if ( current_user_can( "dt_all_access_contacts" ) ): ?>
+                        <?php if ( current_user_can( 'dt_all_access_contacts' ) ): ?>
                             <p>
                                 <strong><?php esc_html_e( 'Follow all contacts', 'disciple_tools' )?></strong>
                             </p>
-                            <p><?php esc_html_e( "You will receive a notification for any update that happens in the system.", 'disciple_tools' ) ?></p>
-                            <div class="switch large">
-                                <input class="switch-input" id="follow_all" type="checkbox" name="follow_all"
-                                       onclick="switch_preference('dt_follow_all');" <?php ( isset( $dt_user_meta['dt_follow_all'] ) && $dt_user_meta['dt_follow_all'][0] == true ) ? print esc_attr( 'checked' ) : print esc_attr( '' ); ?> />
-                                <label class="switch-paddle" for="follow_all">
-                                    <span class="show-for-sr"><?php esc_html_e( 'Enable', 'disciple_tools' )?></span>
-                                    <span class="switch-active" aria-hidden="true"><?php esc_html_e( 'Yes', 'disciple_tools' )?></span>
-                                    <span class="switch-inactive" aria-hidden="false"><?php esc_html_e( 'No', 'disciple_tools' )?></span>
-                                </label>
-                            </div>
+                            <p><?php esc_html_e( 'You will receive a notification for any update that happens in the system.', 'disciple_tools' ) ?></p>
+                            <dt-toggle
+                                id="follow_all"
+                                name="follow_all"
+                                class="settings-notification-toggle settings-follow-all-toggle"
+                                data-preference-key="dt_follow_all"
+                                label="<?php esc_attr_e( 'Follow all contacts', 'disciple_tools' ); ?>"
+                                <?php echo ( isset( $dt_user_meta['dt_follow_all'] ) && $dt_user_meta['dt_follow_all'][0] == true ) ? 'checked' : ''; ?>
+                            ></dt-toggle>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -560,26 +611,49 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                 ?>
 
                 <div class="reveal" id="edit-profile-modal" data-reveal>
-                    <button class="close-button" data-close aria-label="Close modal" type="button">
+                    <button class="close-button" data-close aria-label="<?php esc_html_e( 'Close', 'disciple_tools' ); ?>" type="button">
                         <span aria-hidden="true">&times;</span>
                     </button>
                     <h2><?php esc_html_e( 'Edit', 'disciple_tools' )?></h2>
 
                     <div class="row column medium-12">
 
-                        <form method="post">
+                        <form method="post" enctype="multipart/form-data">
 
-                            <?php wp_nonce_field( "user_" . $dt_user->ID . "_update", "user_update_nonce", false, true ); ?>
+                            <?php wp_nonce_field( 'user_' . $dt_user->ID . '_update', 'user_update_nonce', false, true ); ?>
 
                             <table class="table">
-
                                 <tr>
-                                    <td><?php echo get_avatar( $dt_user->ID, '32' ); ?></td>
                                     <td>
-                                        <span data-tooltip data-click-open="true" class="top" tabindex="1"
-                                              title="<?php esc_html_e( 'Disciple Tools System does not store images. For profile images we use Gravatar (Globally Recognized Avatar). If you have security concerns, we suggest not using a personal photo, but instead choose a cartoon, abstract, or alias photo to represent you.', 'disciple_tools' ) ?>">
-                                            <a href="http://gravatar.com" class="small"><?php esc_html_e( 'edit image on gravatar.com', 'disciple_tools' ) ?> <i class="fi-link"></i></a>
-                                        </span>
+                                        <?php
+                                        if ( DT_Storage_API::is_enabled() && isset( $dt_user_meta['dt_user_profile_picture'][0] ) ){
+                                            $picture_url = DT_Storage_API::get_thumbnail_url( $dt_user_meta['dt_user_profile_picture'][0] );
+                                            $picture_full_url = DT_Storage_API::get_file_url( $dt_user_meta['dt_user_profile_picture'][0] );
+                                            ?><img src="<?php echo esc_attr( $picture_url ); ?>" data-full_url="<?php echo esc_attr( $picture_full_url ); ?>" onerror="this.onerror=null;this.src=this.dataset.full_url;" alt="" width="100px"/><?php
+                                        } else {
+                                            echo get_avatar( $dt_user->ID, '32', null, false, array( 'scheme' => 'https' ) );
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        if ( !DT_Storage_API::is_enabled() ) {
+                                            ?>
+                                            <span data-tooltip data-click-open="true" class="top" tabindex="1"
+                                                      title="<?php esc_html_e( 'Disciple Tools System does not store images. For profile images we use Gravatar (Globally Recognized Avatar). If you have security concerns, we suggest not using a personal photo, but instead choose a cartoon, abstract, or alias photo to represent you.', 'disciple_tools' ) ?>">
+                                                <a href="http://gravatar.com" class="small"><?php esc_html_e( 'edit image on gravatar.com', 'disciple_tools' ) ?> <i class="fi-link"></i></a>
+                                            </span>
+                                            <?php
+                                        } else {
+                                            ?>
+                                            <span data-tooltip data-click-open="true" class="top" tabindex="1"
+                                                  title="<?php esc_html_e( 'Disciple Tools System does not store images. All media assets will be placed within specified media connection storage service. If you have security concerns, we suggest not using a personal photo, but instead choose a cartoon, abstract, or alias photo to represent you.', 'disciple_tools' ) ?>">
+                                                <br><?php esc_html_e( 'Upload new profile image', 'disciple_tools' ) ?><br>
+                                                <input id="user_profile_pic" name="user_profile_pic" type="file" accept=".gif,.jpg,.jpeg,.png" />
+                                            </span>
+                                            <?php
+                                        }
+                                        ?>
                                     </td>
                                 </tr>
                                 <tr>
@@ -620,7 +694,7 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                 <tr>
                                     <td><label for="nickname"><span dir="auto"><?php esc_html_e( 'Nickname (Display Name)', 'disciple_tools' )?></span></label></td>
                                     <td><input type="text" class="profile-input" id="nickname" name="nickname" dir="auto"
-                                               value=" <?php echo esc_html( $dt_user->nickname ); ?>"/></td>
+                                               value=" <?php echo esc_html( $dt_user->display_name ); ?>"/></td>
                                 </tr>
 
                                 <?php // site defined fields
@@ -654,10 +728,10 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                     </label></td>
                                     <td>
                                         <select class="select-field" id="<?php echo esc_html( $field_key ); ?>" style="width:auto; display: block">
-                                            <?php foreach ( $contact_fields[$field_key]["default"] as $option_key => $option_value ):
+                                            <?php foreach ( $contact_fields[$field_key]['default'] as $option_key => $option_value ):
                                                 $selected = $user_field === $option_key; ?>
-                                                <option value="<?php echo esc_html( $option_key )?>" <?php echo esc_html( $selected ? "selected" : "" )?>>
-                                                <?php echo esc_html( $option_value["label"] ) ?>
+                                                <option value="<?php echo esc_html( $option_key )?>" <?php echo esc_html( $selected ? 'selected' : '' )?>>
+                                                <?php echo esc_html( $option_value['label'] ) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -669,6 +743,9 @@ $apps_list = apply_filters( 'dt_settings_apps_list', $apps_list = [] );
                                         <?php
                                         dt_language_select()
                                         ?>
+                                        <br>
+                                        <a href="https://disciple.tools/translation/"
+                                           target="_blank"><?php esc_html_e( 'Translate Disciple.Tools into your language or help make a translation better.', 'disciple_tools' ) ?></a>
                                     </td>
                                 </tr>
 

@@ -20,10 +20,8 @@ define( 'DOING_AJAX', true );
 define( 'SHORTINIT', 1 );
 
 // Setup
-if ( ! isset( $_SERVER['DOCUMENT_ROOT'] ) ) {
-    exit( 'missing server info' );
-}
-require_once $_SERVER['DOCUMENT_ROOT'] . '/wp-load.php'; //@phpcs:ignore
+$wordpress_root_path = preg_replace( '/wp-content(?!.*wp-content).*/', '', __DIR__ );
+require_once( $wordpress_root_path . 'wp-load.php' );
 
 if ( ! defined( 'WP_CONTENT_URL' ) ) {
     define( 'WP_CONTENT_URL', get_option( 'siteurl' ) . '/wp-content' );
@@ -44,7 +42,7 @@ if ( file_exists( $mapping_url . 'geocode-api/location-grid-geocoder.php' ) ) {
 
 // register global database
 global $wpdb;
-$wpdb->dt_location_grid = $wpdb->prefix . 'dt_location_grid';
+$wpdb->dt_location_grid = apply_filters( 'dt_location_grid_table', $wpdb->prefix . 'dt_location_grid' );
 $wpdb->dt_location_grid_meta = $wpdb->prefix . 'dt_location_grid_meta';
 
 

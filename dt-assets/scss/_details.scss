@@ -11,9 +11,13 @@
         opacity: .5;
         color: white;
     }
+    &[disabled] {
+        background-color: #eee;
+        color: black;
+    }
 }
 //unselected options
-.empty-select-button {
+.button.select-button.empty-select-button {
     background-color: #eee;
     color: black;
     &:focus {
@@ -21,7 +25,7 @@
         color:black;
     }
 }
-.selected-select-button {
+.button.select-button.selected-select-button {
     background-color: #4CAF50;
     color: white;
     &:focus {
@@ -136,6 +140,10 @@ html[dir='rtl'] {
 DT comments and activity
 *********************/
 #comment-activity-section{
+
+    scroll-margin-top:60px;
+    scroll-snap-margin-top: 60px;
+
     .button.select-button:hover {
         background-color: #3f729b;
     }
@@ -169,9 +177,16 @@ DT comments and activity
     }
 
     .gravatar {
+        display: flex;
+        align-self: center;
         img {
             height: 16px;
         }
+    }
+    .activity-block .comment-header {
+        display: flex;
+        align-items: baseline;
+        grid-gap: 5px;
     }
 
     #add-comment-button {
@@ -192,6 +207,12 @@ DT comments and activity
         padding-bottom: 2px;
         .comment-text {
             min-height: 1em;
+        }
+        .comment-text ul li {
+            list-style: disc !important;
+        }
+        .comment-text ul br, .comment-text ol br {
+            display: none;
         }
     }
 
@@ -356,6 +377,10 @@ DT comments and activity
         flex-wrap: wrap;
     }
 
+    .comment-controls > audio {
+        width: 100%;
+    }
+
     .edit-comment-controls {
         margin-right: 10px;
         margin-top: 4px;
@@ -378,7 +403,6 @@ DT comments and activity
     }
 
     .comment-date {
-        text-align: right;
         margin-right: 20px;
         font-size:12px;
     }
@@ -437,7 +461,7 @@ DT comments and activity
 
     //add a loading spinner when searching for contacts
     .mentions-input-box textarea.loading-gif {
-        background:url('../../../dt-assets/images/ajax-loader.gif') no-repeat 99% 6px;
+        background:url('../images/ajax-loader.gif') no-repeat 99% 6px;
     }
     //make sure the blue boxes around the @mentions in the textarea are the right sizes
     .mentions-input-box .mentions strong span {
@@ -460,6 +484,321 @@ DT comments and activity
             padding-top: .53333rem;
             padding-left: .5rem;
             padding-right: .15rem;
+        }
+    }
+
+    .audio-comment {
+        margin: 10px 0 10px 0;
+        width: 100%;
+    }
+
+    .image-comment {
+        border-radius: 25px;
+        margin: 10px 0 10px 0;
+        max-height: 400px;
+    }
+
+    /* Voice Recording Styles */
+    .voice-record-btn, .image-comment-btn {
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+        margin-right: 10px;
+        color: #667;
+    }
+
+    .voice-record-btn:hover, .image-comment-btn:hover {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+    }
+
+    .voice-record-btn i, .image-comment-btn i {
+        font-size: 24px;
+    }
+
+    .voice-record-btn.recording {
+        background: #ff4444;
+        color: white;
+        border: 1px solid #ff4444;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    /* Slide animations for recording controls */
+    .audio-recording-controls {
+        margin: 20px 0;
+        padding: 25px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transition: all 0.6s ease-in-out;
+    }
+
+    .audio-recording-controls.show {
+        max-height: 600px;
+        opacity: 1;
+        margin: 20px 0;
+    }
+
+    .audio-recording-controls.hide {
+        max-height: 0;
+        opacity: 0;
+        margin: 0;
+        padding: 0 25px;
+    }
+
+    .recording-header {
+        margin-bottom: 20px;
+    }
+
+    .recording-status {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .recording-timer {
+        font-family: 'Courier New', monospace;
+        font-size: 1.4em;
+        color: #495057;
+        font-weight: bold;
+        background: rgba(255,255,255,0.8);
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+    }
+
+    .audio-visualization-container {
+        position: relative;
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    #audio-visualizer {
+        width: 100%;
+        height: 80px;
+        border-radius: 4px;
+        background: #f8f9fa;
+    }
+
+    .recording-controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .recording-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        min-width: 140px;
+        justify-content: center;
+    }
+
+    .recording-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+
+    .start-btn {
+        background: #00897B;
+        color: white;
+        border: 1px solid #00897B;
+    }
+
+    .start-btn:hover {
+        background: #218838;
+        border-color: #1e7e34;
+    }
+
+    .stop-btn {
+        background: #dc3545;
+        color: white;
+        border: 1px solid #dc3545;
+    }
+
+    .stop-btn:hover {
+        background: #c82333;
+        border-color: #bd2130;
+    }
+
+    .play-btn {
+        background: #007bff;
+        color: white;
+        border: 1px solid #007bff;
+    }
+
+    .play-btn:hover {
+        background: #0056b3;
+        border-color: #004085;
+    }
+
+    .save-btn {
+        background: #00897B;
+        color: white;
+        border: 1px solid #00897B;
+    }
+
+    .save-btn:hover {
+        background: #218838;
+        border-color: #1e7e34;
+    }
+
+    .save-btn-success {
+        background: #28a745;
+        color: white;
+        border: 1px solid #28a745;
+    }
+
+    .save-btn-success:hover {
+        background: #218838;
+        border-color: #1e7e34;
+    }
+
+    .cancel-btn {
+        background: #6c757d;
+        color: white;
+        border: 1px solid #6c757d;
+    }
+
+    .cancel-btn:hover {
+        background: #5a6268;
+        border-color: #545b62;
+    }
+
+    .audio-preview-container {
+        position: relative;
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    #recording-preview {
+        width: 100%;
+        height: 40px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .voice-record-btn {
+            width: 40px;
+            height: 40px;
+            margin-right: 8px;
+        }
+
+        .voice-record-btn i {
+            font-size: 20px;
+        }
+
+        .audio-recording-controls {
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .recording-controls {
+            flex-direction: column;
+        }
+
+        .recording-btn {
+            width: 100%;
+            min-width: auto;
+        }
+
+        .audio-visualization-container {
+            padding: 15px;
+        }
+
+        .audio-preview-container {
+            padding: 15px;
+        }
+
+        #audio-visualizer {
+            height: 60px;
+        }
+    }
+
+    /* Upload error message styles */
+    .upload-error-message {
+        margin-top: 15px;
+        animation: slideDown 0.3s ease-out;
+
+        .callout {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+
+            i {
+                font-size: 18px;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .error-text {
+                flex: 1;
+                min-width: 0;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                white-space: pre-wrap;
+                hyphens: auto;
+            }
+        }
+
+        .callout.alert {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+
+            i {
+                color: #dc3545;
+            }
+        }
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
     }
 }
@@ -618,14 +957,17 @@ select.color-select {
         background-color: white;
         color: black;
     }
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='32' height='24' viewBox='0 0 32 24'><polygon points='0,0 32,0 16,24' style='fill: white'></polygon></svg>");
-    border:none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='32' height='24' viewBox='0 0 32 24'><polygon points='0,0 32,0 16,24' style='fill: white;stroke:black;stroke-width:1;'></polygon></svg>");
     text-shadow: rgba(0, 0, 0, 0.45) 0 0 6px;
 }
 
 
 
 .bordered-box{
+    .grid-margin-y .cell {
+        margin-block-start: 0;
+        margin-block-end: 0.66rem;
+    }
     .section-header {
         display: flex;
     }
@@ -638,6 +980,10 @@ select.color-select {
     }
     .chevron_down {
         display: none;
+    }
+    .section-body {
+        display: flex;
+        flex-direction: column;
     }
 
     &.collapsed {
@@ -652,6 +998,12 @@ select.color-select {
         }
     }
 
+}
+.single-template .section-body {
+    gap: 0.8rem;
+}
+.hidden-grid-item {
+    display: none
 }
 
 //don't have typeaheads cover other elements
@@ -709,11 +1061,131 @@ select.color-select {
         width: 10px;
         vertical-align: baseline;
     }
+    .control-buttons {
+        grid-gap: 0.3em;
+    }
+    .details-bar-picture {
+        vertical-align: middle;
+        cursor: pointer;
+    }
+    img.details-bar-picture {
+        min-width: 55px;
+        width: 55px;
+        height: 55px;
+        border-radius: 5px;
+        object-fit: cover;
+    }
+    i.details-bar-picture {
+        font-size: 55px;
+        height: 40px;
+        opacity: 0.3;
+        display: flex;
+    }
+    i.details-bar-picture::before {
+        align-self: center;
+    }
+}
+.is-stuck {
+    #second-bar-small {
+        img.details-bar-picture {
+            min-width: 40px;
+            width: 40px;
+            height: 40px;
+        }
+        i.details-bar-picture {
+            height: 40px;
+            font-size: 40px;
+        }
+        border-top: .5rem solid $primary-color;
+        .mobile-nav-actions {
+            display: none;
+        }
+        #record-tagline {
+            opacity:0;
+            height: 0;
+            display: none;
+        }
+    }
+    .hide-on-scroll {
+        display: none;
+    }
+}
+
+#second-bar-small{
+    border-top: none;
+    #record-tagline {
+        transition: all .3s;
+        opacity:1;
+    }
+    .mobile-nav-actions {
+        margin-bottom: 5px;
+        grid-gap: 5px;
+    }
 }
 
 //user select field
 .dt_user_select {
-    margin-bottom:15px;
+    //margin-bottom:15px;
+}
+
+// link field
+.add-link-dropdown {
+    position: absolute;
+    display: inline-block;
+    margin: 0 5px;
+}
+
+.add-link-dropdown::before {
+    content: "";
+    position: absolute;
+    width: 50px;
+    height: 25px;
+    transform: translate(-18px, -3px);
+    cursor: pointer;
+}
+
+.add-link-dropdown__content {
+  display: none;
+  position: absolute;
+  background-color: #fff;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  border: solid 1px #cacaca;
+  z-index: 1;
+  transform: translateX(-15%);
+}
+html[dir="rtl"] .add-link-dropdown__content {
+  transform: translateX(15%);
+}
+
+.add-link-dropdown:hover .add-link-dropdown__content {
+    display: block;
+}
+
+.add-link-dropdown__content:hover {
+    display: block;
+}
+
+.add-link__option {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.add-link__option:hover {
+    background-color: #3f729b;
+    color: #fff;
+}
+
+.link-section .section-subheader {
+    display: none;
+}
+
+.link-section .section-subheader:has(+ div) {
+    display: block;
+}
+
+.link-section .input-group {
+    margin-bottom: 5px;
 }
 
 //assign to modal
@@ -759,6 +1231,10 @@ select.color-select {
     height: 50px;
     width: 50px;
     filter: grayscale(1) opacity(0.75);
+}
+.health-item i {
+    font-size: 50px;
+    filter: grayscale(1) opacity(0.2);
 }
 .practiced-item {
     filter: none !important;
